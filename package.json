@@ -1,0 +1,13 @@
+{
+  "private": true,
+  "scripts": {
+    "dev": "node cmc/node_modules/vite/bin/vite.js",
+    "build": "npm --prefix cmc run build",
+    "preview": "npm --prefix cmc run preview",
+    "lint": "npm --prefix cmc run lint"
+  },
+  "dependencies": {
+    "lucide-react": "^1.30.0",
+    "react-router-dom": "^7.18.2"
+  }
+}
