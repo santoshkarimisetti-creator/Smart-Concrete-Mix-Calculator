@@ -1,10 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useContext, useMemo, useState } from 'react'
 
 import FormSection from '../components/FormSection.jsx'
 import InputField from '../components/InputField.jsx'
 import SelectField from '../components/SelectField.jsx'
+import { AuthContext } from '../context/AuthContext.jsx'
+import { saveCalculation } from '../lib/calculations.js'
 import { calculateMixDesign } from '../lib/mixDesignCalculator.js'
 import {
+  getAdmixtureRecommendedValues,
   mixDesignDefaults,
   mixDesignOptions,
 } from '../data/mixDesignOptions.js'
@@ -20,24 +23,13 @@ const initialFormData = {
   fineAggregateSpecificGravity: '',
   coarseAggregateSpecificGravity: '',
   admixture: false,
+  admixtureType: '',
+  admixtureDosage: '',
+  admixtureSpecificGravity: '',
+  admixtureWaterReduction: '',
   area: '',
   thickness: '',
 }
-
-const admixtureInputs = [
-  {
-    name: 'admixtureType',
-    label: 'Admixture Type',
-    type: 'text',
-    placeholder: 'To be defined',
-  },
-  {
-    name: 'admixtureDosage',
-    label: 'Admixture Dosage',
-    type: 'text',
-    placeholder: 'To be defined',
-  },
-]
 
 function ToggleButton({ active, children, onClick }) {
   return (
@@ -134,15 +126,43 @@ function validateFormData(formData) {
     errors.coarseAggregateSpecificGravity = 'Coarse Aggregate Specific Gravity must be greater than 0.'
   }
 
+  if (formData.admixture) {
+    if (!formData.admixtureType) {
+      errors.admixtureType = 'Admixture Type is required.'
+    }
+
+    if (!formData.admixtureDosage) {
+      errors.admixtureDosage = 'Admixture Dosage is required.'
+    } else if (Number(formData.admixtureDosage) <= 0) {
+      errors.admixtureDosage = 'Admixture Dosage must be greater than 0.'
+    }
+
+    if (!formData.admixtureSpecificGravity) {
+      errors.admixtureSpecificGravity = 'Admixture Specific Gravity is required.'
+    } else if (Number(formData.admixtureSpecificGravity) <= 0) {
+      errors.admixtureSpecificGravity = 'Admixture Specific Gravity must be greater than 0.'
+    }
+
+    if (formData.admixtureWaterReduction === '' || formData.admixtureWaterReduction === null || formData.admixtureWaterReduction === undefined) {
+      errors.admixtureWaterReduction = 'Admixture Water Reduction is required.'
+    } else if (Number(formData.admixtureWaterReduction) < 0) {
+      errors.admixtureWaterReduction = 'Admixture Water Reduction must be greater than or equal to 0.'
+    }
+  }
+
   return errors
 }
 
 export default function Calculator() {
+  const { user } = useContext(AuthContext)
   const [formData, setFormData] = useState(initialFormData)
   const [errors, setErrors] = useState({})
   const [successMessage, setSuccessMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submittedResult, setSubmittedResult] = useState(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveMessage, setSaveMessage] = useState('')
+  const [savedId, setSavedId] = useState(null)
 
   const calculationResult = useMemo(
     () => calculateMixDesign(formData),
@@ -162,6 +182,8 @@ export default function Calculator() {
 
     setSuccessMessage('')
     setSubmittedResult(null)
+    setSaveMessage('')
+    setSavedId(null)
   }
 
   const handleInputChange = (event) => {
@@ -194,6 +216,35 @@ export default function Calculator() {
     setSubmittedResult(null)
   }
 
+  const useRecommendedAdmixtureValues = () => {
+    const selectedType =
+      formData.admixtureType || mixDesignOptions.admixtureType[0]?.value || ''
+    const recommendedValues = getAdmixtureRecommendedValues(selectedType)
+
+    if (!recommendedValues) {
+      return
+    }
+
+    setFormData((current) => ({
+      ...current,
+      admixture: true,
+      admixtureType: selectedType,
+      admixtureDosage: String(recommendedValues.dosage),
+      admixtureWaterReduction: String(recommendedValues.waterReduction),
+    }))
+
+    setErrors((current) => ({
+      ...current,
+      admixtureType: undefined,
+      admixtureDosage: undefined,
+      admixtureSpecificGravity: undefined,
+      admixtureWaterReduction: undefined,
+    }))
+
+    setSuccessMessage('')
+    setSubmittedResult(null)
+  }
+
   const handleSubmit = (event) => {
     event.preventDefault()
 
@@ -209,14 +260,40 @@ export default function Calculator() {
     }
 
     setIsSubmitting(true)
+    setSaveMessage('')
+    setSavedId(null)
 
     try {
       setSubmittedResult(calculationResult)
-      console.log('formData:', formData)
-      console.log('calculationResult:', calculationResult)
-      setSuccessMessage('Inputs are valid. Mix design calculation will be performed in the next task.')
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const handleSave = async () => {
+    if (isSaving || savedId || !submittedResult || !user) {
+      return
+    }
+
+    setIsSaving(true)
+    setSaveMessage('')
+
+    try {
+      const { data, error } = await saveCalculation(user.id, formData, submittedResult)
+
+      if (error) {
+        console.error('Save calculation error:', error.message, error.details, error.hint)
+        setSaveMessage('Unable to save this calculation. Please try again.')
+        return
+      }
+
+      setSavedId(data?.id ?? true)
+      setSaveMessage('Calculation saved successfully.')
+    } catch (err) {
+      console.error('Unexpected save error:', err)
+      setSaveMessage('Unable to save this calculation. Please try again.')
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -420,19 +497,80 @@ export default function Calculator() {
           </div>
 
           {formData.admixture ? (
-            <div className="admixture-placeholder">
-              <p>
-                Additional admixture inputs will be added when the final design requirements are defined.
-              </p>
-              {admixtureInputs.map((field) => (
-                <label key={field.name} className="field">
-                  <span className="field__label">{field.label}</span>
-                  <div className="field__control">
-                    <input type={field.type} placeholder={field.placeholder} disabled />
-                  </div>
-                </label>
-              ))}
-            </div>
+            <>
+              <SelectField
+                label="Admixture Type"
+                name="admixtureType"
+                value={formData.admixtureType}
+                onChange={handleInputChange}
+                error={errors.admixtureType}
+                options={mixDesignOptions.admixtureType}
+                placeholder="Select admixture type"
+                required={false}
+              />
+
+              <InputField
+                label="Dosage"
+                name="admixtureDosage"
+                type="number"
+                unit="% of cement mass"
+                value={formData.admixtureDosage}
+                onChange={handleInputChange}
+                error={errors.admixtureDosage}
+                min="0"
+                placeholder="Enter dosage"
+              />
+
+              <InputField
+                label="Specific Gravity"
+                name="admixtureSpecificGravity"
+                type="number"
+                unit=""
+                value={formData.admixtureSpecificGravity}
+                onChange={handleInputChange}
+                error={errors.admixtureSpecificGravity}
+                min="0"
+                placeholder="Enter specific gravity"
+              />
+
+              <InputField
+                label="Water Reduction"
+                name="admixtureWaterReduction"
+                type="number"
+                unit="%"
+                value={formData.admixtureWaterReduction}
+                onChange={handleInputChange}
+                error={errors.admixtureWaterReduction}
+                min="0"
+                placeholder="Enter water reduction"
+              />
+
+              <div className="field admixture-actions-field">
+                <span className="field__label">Starting Values</span>
+                <div className="field__control">
+                  <button
+                    type="button"
+                    className="admixture-recommend-btn"
+                    onClick={useRecommendedAdmixtureValues}
+                    title={`Apply recommended starting values for the selected admixture type`}
+                  >
+                    Use Recommended Starting Value
+                  </button>
+                </div>
+                <p className="field__hint">Values are starting assumptions only — not universal manufacturer values.</p>
+              </div>
+
+              <div className="admixture-warning" role="alert">
+                <svg className="admixture-warning__icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.345 0-2.189-1.458-1.515-2.625L8.485 2.495z" stroke="currentColor" strokeWidth="1.5" fill="rgba(245,158,11,0.12)"/>
+                  <path d="M10 7v4M10 13.5v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+                <p>
+                  Admixture dosage and performance must be verified with the
+                  manufacturer&apos;s technical data and laboratory trial mix.
+                </p>
+              </div>
+            </>
           ) : null}
         </FormSection>
 
@@ -446,6 +584,27 @@ export default function Calculator() {
           <header className="results-section__header">
             <p className="eyebrow">Mix Design Result</p>
             <h2>Preliminary mix-design estimate</h2>
+
+            <div className="results-save-row">
+              <button
+                type="button"
+                className="save-button"
+                onClick={handleSave}
+                disabled={isSaving || Boolean(savedId)}
+              >
+                {isSaving ? 'Saving...' : savedId ? 'Saved ✓' : 'Save Calculation'}
+              </button>
+              {saveMessage ? (
+                <p
+                  role="status"
+                  className={`save-message ${
+                    saveMessage.includes('successfully') ? 'save-message--ok' : 'save-message--err'
+                  }`}
+                >
+                  {saveMessage}
+                </p>
+              ) : null}
+            </div>
           </header>
 
           {submittedResult.warnings.length > 0 ? (
@@ -517,10 +676,10 @@ export default function Calculator() {
               <div className="result-metric">
                 <span className="result-metric__label">Cement</span>
                 <strong className="result-metric__value">
-                  {formatNumber(submittedResult.materials.cementKg, 0)} kg
+                  {formatNumber(submittedResult.cement.totalKg, 0)} kg
                   <span className="result-metric__unit">
                     {' '}
-                    ({formatNumber(submittedResult.materials.cementBags, 2)} bags)
+                    ({formatNumber(submittedResult.cement.bags, 2)} bags)
                   </span>
                 </strong>
               </div>
@@ -528,29 +687,38 @@ export default function Calculator() {
               <div className="result-metric">
                 <span className="result-metric__label">Water</span>
                 <strong className="result-metric__value">
-                  {formatNumber(submittedResult.materials.waterLitres, 0)} litres
+                  {formatNumber(submittedResult.water.totalLitres, 0)} litres
                 </strong>
               </div>
 
               <div className="result-metric">
                 <span className="result-metric__label">Sand</span>
                 <strong className="result-metric__value">
-                  {formatNumber(submittedResult.materials.fineAggregateKg, 0)} kg
+                  {formatNumber(submittedResult.aggregates.fineTotalKg, 0)} kg
                 </strong>
               </div>
 
               <div className="result-metric">
                 <span className="result-metric__label">Coarse Aggregate</span>
                 <strong className="result-metric__value">
-                  {formatNumber(submittedResult.materials.coarseAggregateKg, 0)} kg
+                  {formatNumber(submittedResult.aggregates.coarseTotalKg, 0)} kg
                 </strong>
               </div>
 
               <div className="result-metric">
-                <span className="result-metric__label">Admixture</span>
+                <span className="result-metric__label">Admixture Quantity</span>
                 <strong className="result-metric__value">
                   {submittedResult.admixture.enabled && submittedResult.admixture.quantity > 0
-                    ? `${formatNumber(submittedResult.admixture.quantity, 2)} kg/L`
+                    ? `${formatNumber(submittedResult.admixture.quantity, 2)} kg`
+                    : 'Not used'}
+                </strong>
+              </div>
+
+              <div className="result-metric">
+                <span className="result-metric__label">Admixture Volume</span>
+                <strong className="result-metric__value">
+                  {submittedResult.admixture.enabled && submittedResult.admixture.volume > 0
+                    ? `${formatNumber(submittedResult.admixture.volume, 4)} m³`
                     : 'Not used'}
                 </strong>
               </div>

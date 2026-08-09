@@ -227,21 +227,24 @@ export function calculateAggregateFractions({ aggregateSize, adoptedWaterCementR
   if (baseFraction === null || adoptedWaterCementRatio === null) {
     return {
       baseFraction,
-      coarseFraction: null,
       fineFraction: null,
+      coarseFraction: null,
       warnings: [],
     }
   }
 
-  const coarseFraction = clampFraction(
+  // baseFraction is the IS 10262 table value = proportion of FINE aggregate to total
+  // aggregate by absolute volume (Zone II), at W/C = 0.5.
+  // As W/C decreases below 0.5, fine fraction increases (more fine needed for workability).
+  const fineFraction = clampFraction(
     baseFraction + ((0.5 - adoptedWaterCementRatio) / 0.05) * 0.01
   )
-  const fineFraction = coarseFraction === null ? null : clampFraction(1 - coarseFraction)
+  const coarseFraction = fineFraction === null ? null : clampFraction(1 - fineFraction)
 
   return {
     baseFraction,
-    coarseFraction,
     fineFraction,
+    coarseFraction,
     warnings: [
       'Fine aggregate Zone II is being used as the default assumption.',
       'Trial mix verification is required.',
@@ -417,10 +420,20 @@ export function calculateMixDesign(formData = {}) {
     errors.push('Slump must be greater than or equal to 0.')
   }
 
+  const admixtureEnabled = Boolean(formData.admixture)
+  const admixtureType = formData.admixtureType ?? ''
+  const admixtureDosage = toNumericValue(formData.admixtureDosage)
+  const admixtureSpecificGravity = toNumericValue(formData.admixtureSpecificGravity)
+  const admixtureWaterReduction = toNumericValue(formData.admixtureWaterReduction)
+  const waterReductionPercent =
+    admixtureEnabled && admixtureWaterReduction !== null && admixtureWaterReduction >= 0
+      ? admixtureWaterReduction
+      : 0
+
   const waterContent = calculateWaterContent({
     baseWaterContent,
     slump,
-    waterReductionPercent: 0,
+    waterReductionPercent,
     concreteVolume,
   })
 
@@ -428,33 +441,28 @@ export function calculateMixDesign(formData = {}) {
     warnings.push(waterContent.warning)
   }
 
-  const admixtureEnabled = Boolean(formData.admixture)
-  const admixtureMass = toNumericValue(formData.admixtureMass)
-  const admixtureSpecificGravity = toNumericValue(formData.admixtureSpecificGravity)
-  const admixtureVolume =
-    admixtureEnabled && isPositiveNumber(admixtureMass) && isPositiveNumber(admixtureSpecificGravity)
-      ? admixtureMass / (admixtureSpecificGravity * 1000)
-      : 0
-
-  const admixtureNote =
-    admixtureEnabled && admixtureVolume === 0
-      ? 'Admixture selected. Water reduction requires product/manufacturer or trial data.'
-      : null
-
-  if (admixtureNote) {
-    warnings.push(admixtureNote)
-  }
-
-  const waterReductionPercent = 0
   const waterContentPerM3 = waterContent.contentPerM3
   const waterContentTotal = waterContent.totalLitres
+
+  // Nominal water and cement content derived from pre-admixture water (water without reduction).
+  // The admixture dosage is determined by the design cement content, which is based on
+  // the unreduced water content — this is consistent with engineering practice.
+  const minimumCementContent = exposureLimits.minimumCementContent
+  const nominalWaterContentPerM3 = waterContent.adjustedWaterAfterSlump  // water before admixture reduction
+  const nominalCalculatedCementContent =
+    nominalWaterContentPerM3 === null || adoptedWaterCementRatio === null || adoptedWaterCementRatio <= 0
+      ? null
+      : nominalWaterContentPerM3 / adoptedWaterCementRatio
+  const nominalAdoptedCementContent =
+    nominalCalculatedCementContent === null || minimumCementContent === null
+      ? null
+      : Math.max(nominalCalculatedCementContent, minimumCementContent)
 
   const calculatedCementContent =
     waterContentPerM3 === null || adoptedWaterCementRatio === null || adoptedWaterCementRatio <= 0
       ? null
       : waterContentPerM3 / adoptedWaterCementRatio
 
-  const minimumCementContent = exposureLimits.minimumCementContent
   const adoptedCementContent =
     calculatedCementContent === null || minimumCementContent === null
       ? null
@@ -473,6 +481,25 @@ export function calculateMixDesign(formData = {}) {
 
   if (concreteVolume !== null && concreteVolume <= 0) {
     errors.push('Calculated concrete volume is not physically valid. Check the input assumptions.')
+  }
+
+  // Admixture quantity and volume — quantity uses nominal (pre-reduction) cement content
+  // as the dosage basis is the design cement, not the post-reduction value.
+  const admixtureQuantity =
+    admixtureEnabled && isPositiveNumber(nominalAdoptedCementContent) && isPositiveNumber(admixtureDosage)
+      ? (nominalAdoptedCementContent * admixtureDosage) / 100
+      : 0
+  const admixtureVolume =
+    admixtureEnabled && isPositiveNumber(admixtureQuantity) && isPositiveNumber(admixtureSpecificGravity)
+      ? admixtureQuantity / (admixtureSpecificGravity * 1000)
+      : 0
+
+  const admixtureNote = admixtureEnabled
+    ? 'Admixture dosage and performance must be verified with the manufacturer\'s technical data and laboratory trial mix.'
+    : null
+
+  if (admixtureNote) {
+    warnings.push(admixtureNote)
   }
 
   const cementSpecificGravity = toNumericValue(formData.cementSpecificGravity)
@@ -497,8 +524,6 @@ export function calculateMixDesign(formData = {}) {
       : adoptedCementContent / (cementSpecificGravity * 1000)
 
   const waterVolume = waterContentPerM3 === null ? null : waterContentPerM3 / 1000
-  const admixtureQuantity = admixtureEnabled ? admixtureMass ?? 0 : 0
-
   const aggregateVolume =
     cementVolume === null || waterVolume === null || entrappedAir.airVolume === null
       ? null
@@ -533,6 +558,32 @@ export function calculateMixDesign(formData = {}) {
     coarseVolumePerM3 === null || !isPositiveNumber(coarseAggregateSpecificGravity)
       ? null
       : coarseVolumePerM3 * coarseAggregateSpecificGravity * 1000
+
+  // ── Absolute volume sanity check ─────────────────────────────────────────
+  // The sum of all component volumes must equal approximately 1.0 m³.
+  // A violation indicates invalid material properties or a logic error.
+  if (
+    cementVolume !== null &&
+    waterVolume !== null &&
+    entrappedAir.airVolume !== null &&
+    fineVolumePerM3 !== null &&
+    coarseVolumePerM3 !== null
+  ) {
+    const totalAbsoluteVolume =
+      cementVolume +
+      waterVolume +
+      entrappedAir.airVolume +
+      admixtureVolume +
+      fineVolumePerM3 +
+      coarseVolumePerM3
+
+    if (Math.abs(totalAbsoluteVolume - 1) > 0.01) {
+      errors.push(
+        `Absolute volume balance is invalid (sum = ${totalAbsoluteVolume.toFixed(4)} m\u00b3). ` +
+        'Please check material properties and calculation inputs.'
+      )
+    }
+  }
 
   const fineTotalKg =
     fineKgPerM3 === null || concreteVolume === null ? null : fineKgPerM3 * concreteVolume
@@ -582,8 +633,10 @@ export function calculateMixDesign(formData = {}) {
       fineAggregateSpecificGravity,
       coarseAggregateSpecificGravity,
       admixture: admixtureEnabled,
-      admixtureMass,
+      admixtureType,
+      admixtureDosage,
       admixtureSpecificGravity,
+      admixtureWaterReduction,
       cementPrice: prices.cementPrice,
       sandPrice: prices.sandPrice,
       aggregatePrice: prices.aggregatePrice,
@@ -626,12 +679,14 @@ export function calculateMixDesign(formData = {}) {
       slumpAdjustmentPercent: waterContent.slumpAdjustmentPercent,
       reductionPercent: waterReductionPercent,
       contentPerM3: waterContentPerM3,
+      volume: waterVolume,
       totalLitres: waterTotalLitres,
     },
     cement: {
       calculatedPerM3: calculatedCementContent,
       minimumPerM3: minimumCementContent,
       adoptedPerM3: adoptedCementContent,
+      volume: cementVolume,
       totalKg: cementTotal,
       bags: cementBags,
     },

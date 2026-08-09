@@ -28,6 +28,36 @@ export const mixDesignOptions = {
     { value: 'Very Severe', label: 'Very Severe' },
     { value: 'Extreme', label: 'Extreme' },
   ],
+  admixtureType: [
+    { value: 'Plasticizer / Water Reducer', label: 'Plasticizer / Water Reducer' },
+    { value: 'Superplasticizer', label: 'Superplasticizer' },
+    { value: 'Retarder', label: 'Retarder' },
+    { value: 'Accelerator', label: 'Accelerator' },
+    { value: 'Air-Entraining Admixture', label: 'Air-Entraining Admixture' },
+  ],
+}
+
+export const admixtureRecommendedValues = {
+  'Plasticizer / Water Reducer': {
+    dosage: 0.5,
+    waterReduction: 5,
+  },
+  Superplasticizer: {
+    dosage: 1.0,
+    waterReduction: 12,
+  },
+  Retarder: {
+    dosage: 0.5,
+    waterReduction: 0,
+  },
+  Accelerator: {
+    dosage: 1.0,
+    waterReduction: 0,
+  },
+  'Air-Entraining Admixture': {
+    dosage: 0.1,
+    waterReduction: 0,
+  },
 }
 
 export const mixDesignDefaults = {
@@ -43,4 +73,12 @@ export const mixDesignDefaults = {
   fineAggregateSpecificGravity: null,
   coarseAggregateSpecificGravity: null,
   admixture: false,
+  admixtureType: null,
+  admixtureDosage: null,
+  admixtureSpecificGravity: null,
+  admixtureWaterReduction: null,
+}
+
+export function getAdmixtureRecommendedValues(admixtureType) {
+  return admixtureRecommendedValues[admixtureType] || null
 }

@@ -21,6 +21,10 @@ function buildFormData(overrides = {}) {
   }
 }
 
+function assertClose(actual, expected, tolerance = 1e-9) {
+  assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} is not close to ${expected}`)
+}
+
 test('TEST 1 - M25 Moderate 20 mm 50 mm slump 0.50 W/C', () => {
   const result = calculateMixDesign(buildFormData())
 
@@ -127,7 +131,93 @@ test('TEST 8 - Admixture enabled without verified data does not invent water red
   assert.equal(result.admixture.volume, 0)
   assert.ok(
     result.warnings.includes(
-      'Admixture selected. Water reduction requires product/manufacturer or trial data.'
+      'Admixture dosage and performance must be verified with the manufacturer\'s technical data and laboratory trial mix.'
     )
+  )
+})
+
+test('TEST 9 - Admixture off keeps admixture quantity and volume at zero', () => {
+  const result = calculateMixDesign(buildFormData({ admixture: false }))
+
+  assert.equal(result.admixture.enabled, false)
+  assert.equal(result.admixture.quantity, 0)
+  assert.equal(result.admixture.volume, 0)
+  assert.equal(result.water.reductionPercent, 0)
+})
+
+test('TEST 10 - Dosage changes admixture quantity', () => {
+  const lowDosage = calculateMixDesign(
+    buildFormData({
+      admixture: true,
+      admixtureType: 'Superplasticizer',
+      admixtureDosage: '0.5',
+      admixtureSpecificGravity: '1.20',
+      admixtureWaterReduction: '12',
+    })
+  )
+  const highDosage = calculateMixDesign(
+    buildFormData({
+      admixture: true,
+      admixtureType: 'Superplasticizer',
+      admixtureDosage: '1.0',
+      admixtureSpecificGravity: '1.20',
+      admixtureWaterReduction: '12',
+    })
+  )
+
+  assertClose(lowDosage.admixture.quantity, 1.86)
+  assertClose(highDosage.admixture.quantity, 3.72)
+  assert.equal(highDosage.admixture.quantity, lowDosage.admixture.quantity * 2)
+})
+
+test('TEST 11 - Water reduction changes adopted water content', () => {
+  const noReduction = calculateMixDesign(
+    buildFormData({
+      admixture: true,
+      admixtureType: 'Plasticizer / Water Reducer',
+      admixtureDosage: '0.5',
+      admixtureSpecificGravity: '1.10',
+      admixtureWaterReduction: '0',
+    })
+  )
+  const reducedWater = calculateMixDesign(
+    buildFormData({
+      admixture: true,
+      admixtureType: 'Plasticizer / Water Reducer',
+      admixtureDosage: '0.5',
+      admixtureSpecificGravity: '1.10',
+      admixtureWaterReduction: '12',
+    })
+  )
+
+  assertClose(noReduction.water.contentPerM3, 186)
+  assertClose(reducedWater.water.contentPerM3, 163.68)
+  assert.ok(reducedWater.water.contentPerM3 < noReduction.water.contentPerM3)
+})
+
+test('TEST 12 - Admixture volume affects aggregate volume', () => {
+  const lowerSpecificGravity = calculateMixDesign(
+    buildFormData({
+      admixture: true,
+      admixtureType: 'Superplasticizer',
+      admixtureDosage: '1.0',
+      admixtureSpecificGravity: '1.00',
+      admixtureWaterReduction: '12',
+    })
+  )
+  const higherSpecificGravity = calculateMixDesign(
+    buildFormData({
+      admixture: true,
+      admixtureType: 'Superplasticizer',
+      admixtureDosage: '1.0',
+      admixtureSpecificGravity: '2.00',
+      admixtureWaterReduction: '12',
+    })
+  )
+
+  assertClose(lowerSpecificGravity.admixture.volume, 0.00372)
+  assertClose(higherSpecificGravity.admixture.volume, 0.00186)
+  assert.ok(
+    higherSpecificGravity.aggregates.totalVolumePerM3 > lowerSpecificGravity.aggregates.totalVolumePerM3
   )
 })
