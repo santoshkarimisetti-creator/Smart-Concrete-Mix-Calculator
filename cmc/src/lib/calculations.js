@@ -33,8 +33,8 @@ function buildPayload(userId, formData, result) {
     area: formData.area !== '' ? Number(formData.area) : null,
     thickness: formData.thickness !== '' ? Number(formData.thickness) : null,
 
-    // Admixture inputs — null when disabled
-    admixture: admixtureEnabled,
+    // Admixture inputs — always boolean, null sub-fields when disabled
+    admixture: admixtureEnabled === true,
     admixture_type: admixtureEnabled ? formData.admixtureType || null : null,
     admixture_dosage:
       admixtureEnabled && formData.admixtureDosage !== ''
@@ -54,16 +54,16 @@ function buildPayload(userId, formData, result) {
   const results = {
     concrete_volume: result.volume.concreteVolume ?? null,
     target_mean_strength: result.strength.targetMeanStrength ?? null,
-    // water_content: adopted water content per m³
     water_content: result.water.contentPerM3 ?? null,
-    // cement_content: adopted cement content per m³
     cement_content: result.cement.adoptedPerM3 ?? null,
 
-    // Absolute volumes per m³ of concrete — sourced directly from engine result
-    cement_volume: result.cement.volume ?? null,
-    water_volume: result.water.volume ?? null,
-    aggregate_volume: result.aggregates.totalVolumePerM3 ?? null,
-    admixture_volume: result.admixture.volume ?? 0,
+    // NOTE: cement_volume, water_volume, aggregate_volume, admixture_volume columns
+    // do not exist in the Supabase table yet. Add those columns in Supabase first,
+    // then uncomment these four lines:
+    // cement_volume: result.cement.volume ?? null,
+    // water_volume: result.water.volume ?? null,
+    // aggregate_volume: result.aggregates.totalVolumePerM3 ?? null,
+    // admixture_volume: result.admixture.volume ?? 0,
 
     fine_aggregate: result.aggregates.fineKgPerM3 ?? null,
     coarse_aggregate: result.aggregates.coarseKgPerM3 ?? null,

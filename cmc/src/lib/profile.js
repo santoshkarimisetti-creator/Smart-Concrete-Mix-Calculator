@@ -13,6 +13,5 @@ export async function ensureProfile(user) {
 
   return supabase.from('profiles').upsert(profile, {
     onConflict: 'user_id',
-    ignoreDuplicates: true,
   })
 }

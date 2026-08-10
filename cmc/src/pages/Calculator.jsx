@@ -1,4 +1,4 @@
-import { useContext, useMemo, useState } from 'react'
+import { useContext, useMemo, useRef, useState } from 'react'
 
 import FormSection from '../components/FormSection.jsx'
 import InputField from '../components/InputField.jsx'
@@ -164,6 +164,8 @@ export default function Calculator() {
   const [saveMessage, setSaveMessage] = useState('')
   const [savedId, setSavedId] = useState(null)
 
+  const savingRef = useRef(false)
+
   const calculationResult = useMemo(
     () => calculateMixDesign(formData),
     [formData]
@@ -271,10 +273,11 @@ export default function Calculator() {
   }
 
   const handleSave = async () => {
-    if (isSaving || savedId || !submittedResult || !user) {
+    if (savingRef.current || savedId || !submittedResult || !user) {
       return
     }
 
+    savingRef.current = true
     setIsSaving(true)
     setSaveMessage('')
 
@@ -293,6 +296,7 @@ export default function Calculator() {
       console.error('Unexpected save error:', err)
       setSaveMessage('Unable to save this calculation. Please try again.')
     } finally {
+      savingRef.current = false
       setIsSaving(false)
     }
   }
