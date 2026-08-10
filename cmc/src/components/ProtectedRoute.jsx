@@ -4,6 +4,7 @@ import { Navigate } from 'react-router-dom'
 import { AuthContext } from '../context/AuthContext.jsx'
 import PageLoader from './PageLoader.jsx'
 import Navbar from './Navbar.jsx'
+import Footer from './Footer.jsx'
 
 export default function ProtectedRoute({ children }) {
   const { user, loading } = useContext(AuthContext)
@@ -20,6 +21,7 @@ export default function ProtectedRoute({ children }) {
     <>
       <Navbar />
       {children}
+      <Footer />
     </>
   )
 }
