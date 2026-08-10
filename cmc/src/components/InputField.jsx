@@ -33,6 +33,8 @@ export default function InputField({
           required={required}
           aria-invalid={Boolean(error)}
           aria-describedby={error ? `${name}-error` : undefined}
+          style={type === 'number' ? { MozAppearance: 'textfield' } : undefined}
+          className={type === 'number' ? 'no-spinner' : undefined}
         />
         {unit ? <span className="field__unit">{unit}</span> : null}
         {showDefaultButton ? (

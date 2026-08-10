@@ -1,5 +1,5 @@
 import { useContext, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, NavLink, useNavigate } from 'react-router-dom'
 
 import { AuthContext } from '../context/AuthContext.jsx'
 
@@ -10,7 +10,6 @@ export default function Navbar() {
 
   const handleLogout = async () => {
     setLoading(true)
-
     try {
       await signOut()
     } finally {
@@ -21,31 +20,42 @@ export default function Navbar() {
 
   return (
     <nav className="topbar card">
-      <div className="topbar__brand">Smart Concrete Mix Calculator</div>
+      <Link className="topbar__brand" to={user ? '/home' : '/login'}>
+        <span className="topbar__brand-icon" aria-hidden="true">🏗️</span>
+        Smart Concrete Mix
+      </Link>
 
       <div className="topbar__actions">
         {!user ? (
           <>
-            <Link className="topbar__link" to="/login">
-              Login
-            </Link>
-            <Link className="topbar__link" to="/signup">
-              Sign Up
-            </Link>
+            <Link className="topbar__link" to="/login">Login</Link>
+            <Link className="topbar__link topbar__link--primary" to="/signup">Sign Up</Link>
           </>
         ) : (
           <>
-            <Link className="topbar__link" to="/dashboard">
-              Dashboard
-            </Link>
-            <Link className="topbar__link" to="/calculator">
+            <NavLink
+              className={({ isActive }) =>
+                isActive ? 'topbar__link topbar__link--active' : 'topbar__link'
+              }
+              to="/home"
+            >
+              Home
+            </NavLink>
+            <NavLink
+              className={({ isActive }) =>
+                isActive ? 'topbar__link topbar__link--active' : 'topbar__link'
+              }
+              to="/calculator"
+            >
               New Mix Design
-            </Link>
-            <Link className="topbar__link" to="/history">
-              History
-            </Link>
-            <button className="topbar__button" type="button" onClick={handleLogout} disabled={loading}>
-              {loading ? 'Logging out...' : 'Logout'}
+            </NavLink>
+            <button
+              className="topbar__button"
+              type="button"
+              onClick={handleLogout}
+              disabled={loading}
+            >
+              {loading ? 'Logging out…' : 'Logout'}
             </button>
           </>
         )}

@@ -5,25 +5,21 @@ import { AuthContext } from '../context/AuthContext.jsx'
 import { deleteCalculation, loadCalculations, updateCalculationCost } from '../lib/calculations.js'
 import { downloadCalculationExcel } from '../utils/exportExcel.js'
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatNum(value, digits = 2) {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) {
-    return '—'
-  }
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return '—'
   return Number(value).toFixed(digits)
 }
 
 function formatDate(isoString) {
   if (!isoString) return '—'
   return new Date(isoString).toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
+    day: '2-digit', month: 'short', year: 'numeric',
   })
 }
 
-// ─── View Modal ──────────────────────────────────────────────────────────────
+// ─── View Modal (imported logic from History) ─────────────────────────────────
 
 function DetailRow({ label, value }) {
   return (
@@ -36,7 +32,6 @@ function DetailRow({ label, value }) {
 
 function ViewModal({ record, onClose }) {
   const r = record
-
   return (
     <div className="history-modal-backdrop" role="dialog" aria-modal="true" aria-label="Calculation details">
       <div className="history-modal">
@@ -53,50 +48,38 @@ function ViewModal({ record, onClose }) {
           <section className="history-modal__section">
             <h3>Project Inputs</h3>
             <div className="history-detail-grid">
-              <DetailRow label="Concrete Grade" value={r.concrete_grade ?? '—'} />
-              <DetailRow label="Cement Type" value={r.cement_type ?? '—'} />
-              <DetailRow label="Aggregate Size" value={r.aggregate_size ?? '—'} />
+              <DetailRow label="Concrete Grade"   value={r.concrete_grade ?? '—'} />
+              <DetailRow label="Cement Type"      value={r.cement_type ?? '—'} />
+              <DetailRow label="Aggregate Size"   value={r.aggregate_size ?? '—'} />
               <DetailRow label="Exposure Condition" value={r.exposure_condition ?? '—'} />
-              <DetailRow label="Slump" value={r.slump != null ? `${r.slump} mm` : '—'} />
-              <DetailRow label="W/C Ratio" value={r.water_cement_ratio != null ? formatNum(r.water_cement_ratio, 2) : '—'} />
-              <DetailRow label="Area" value={r.area != null ? `${formatNum(r.area, 2)} m²` : '—'} />
-              <DetailRow label="Thickness" value={r.thickness != null ? `${r.thickness} mm` : '—'} />
+              <DetailRow label="Slump"            value={r.slump != null ? `${r.slump} mm` : '—'} />
+              <DetailRow label="W/C Ratio"        value={r.water_cement_ratio != null ? formatNum(r.water_cement_ratio, 2) : '—'} />
+              <DetailRow label="Area"             value={r.area != null ? `${formatNum(r.area, 2)} m²` : '—'} />
+              <DetailRow label="Thickness"        value={r.thickness != null ? `${r.thickness} mm` : '—'} />
             </div>
           </section>
 
           <section className="history-modal__section">
             <h3>Mix Design Results</h3>
             <div className="history-detail-grid">
-              <DetailRow label="Concrete Volume" value={r.concrete_volume != null ? `${formatNum(r.concrete_volume, 2)} m³` : '—'} />
+              <DetailRow label="Concrete Volume"      value={r.concrete_volume != null ? `${formatNum(r.concrete_volume, 2)} m³` : '—'} />
               <DetailRow label="Target Mean Strength" value={r.target_mean_strength != null ? `${formatNum(r.target_mean_strength, 2)} MPa` : '—'} />
-              <DetailRow label="Water Content" value={r.water_content != null ? `${formatNum(r.water_content, 2)} kg/m³` : '—'} />
-              <DetailRow label="Cement Content" value={r.cement_content != null ? `${formatNum(r.cement_content, 2)} kg/m³` : '—'} />
-              <DetailRow label="Fine Aggregate" value={r.fine_aggregate != null ? `${formatNum(r.fine_aggregate, 2)} kg/m³` : '—'} />
-              <DetailRow label="Coarse Aggregate" value={r.coarse_aggregate != null ? `${formatNum(r.coarse_aggregate, 2)} kg/m³` : '—'} />
-              <DetailRow label="Mix Ratio" value={r.mix_ratio ?? '—'} />
-              <DetailRow label="Cement Bags" value={r.cement_bags != null ? formatNum(r.cement_bags, 2) : '—'} />
+              <DetailRow label="Water Content"        value={r.water_content != null ? `${formatNum(r.water_content, 2)} kg/m³` : '—'} />
+              <DetailRow label="Cement Content"       value={r.cement_content != null ? `${formatNum(r.cement_content, 2)} kg/m³` : '—'} />
+              <DetailRow label="Fine Aggregate"       value={r.fine_aggregate != null ? `${formatNum(r.fine_aggregate, 2)} kg/m³` : '—'} />
+              <DetailRow label="Coarse Aggregate"     value={r.coarse_aggregate != null ? `${formatNum(r.coarse_aggregate, 2)} kg/m³` : '—'} />
+              <DetailRow label="Mix Ratio"            value={r.mix_ratio ?? '—'} />
+              <DetailRow label="Cement Bags"          value={r.cement_bags != null ? formatNum(r.cement_bags, 2) : '—'} />
             </div>
           </section>
 
           <section className="history-modal__section">
             <h3>Absolute Volumes (per m³ concrete)</h3>
             <div className="history-detail-grid">
-              <DetailRow
-                label="Cement Volume"
-                value={r.cement_volume != null ? `${formatNum(r.cement_volume, 4)} m³` : '—'}
-              />
-              <DetailRow
-                label="Water Volume"
-                value={r.water_volume != null ? `${formatNum(r.water_volume, 4)} m³` : '—'}
-              />
-              <DetailRow
-                label="Admixture Volume"
-                value={r.admixture_volume != null ? `${formatNum(r.admixture_volume, 4)} m³` : '—'}
-              />
-              <DetailRow
-                label="Aggregate Volume"
-                value={r.aggregate_volume != null ? `${formatNum(r.aggregate_volume, 4)} m³` : '—'}
-              />
+              <DetailRow label="Cement Volume"    value={r.cement_volume != null ? `${formatNum(r.cement_volume, 4)} m³` : '—'} />
+              <DetailRow label="Water Volume"     value={r.water_volume != null ? `${formatNum(r.water_volume, 4)} m³` : '—'} />
+              <DetailRow label="Admixture Volume" value={r.admixture_volume != null ? `${formatNum(r.admixture_volume, 4)} m³` : '—'} />
+              <DetailRow label="Aggregate Volume" value={r.aggregate_volume != null ? `${formatNum(r.aggregate_volume, 4)} m³` : '—'} />
             </div>
           </section>
 
@@ -104,10 +87,10 @@ function ViewModal({ record, onClose }) {
             <section className="history-modal__section">
               <h3>Admixture</h3>
               <div className="history-detail-grid">
-                <DetailRow label="Type" value={r.admixture_type ?? '—'} />
-                <DetailRow label="Dosage" value={r.admixture_dosage != null ? `${r.admixture_dosage}%` : '—'} />
+                <DetailRow label="Type"             value={r.admixture_type ?? '—'} />
+                <DetailRow label="Dosage"           value={r.admixture_dosage != null ? `${r.admixture_dosage}%` : '—'} />
                 <DetailRow label="Specific Gravity" value={r.admixture_specific_gravity != null ? formatNum(r.admixture_specific_gravity, 2) : '—'} />
-                <DetailRow label="Water Reduction" value={r.water_reduction_percent != null ? `${r.water_reduction_percent}%` : '—'} />
+                <DetailRow label="Water Reduction"  value={r.water_reduction_percent != null ? `${r.water_reduction_percent}%` : '—'} />
                 <DetailRow label="Admixture Quantity" value={r.admixture_quantity != null && r.admixture_quantity > 0 ? `${formatNum(r.admixture_quantity, 2)} kg` : '—'} />
               </div>
             </section>
@@ -117,7 +100,7 @@ function ViewModal({ record, onClose }) {
             <section className="history-modal__section">
               <h3>Cost Summary</h3>
               <div className="history-detail-grid">
-                <DetailRow label="Total Cost" value={`₹ ${formatNum(r.total_cost, 2)}`} />
+                <DetailRow label="Total Cost"  value={`₹ ${formatNum(r.total_cost, 2)}`} />
                 <DetailRow label="Cost per m³" value={r.cost_per_m3 != null ? `₹ ${formatNum(r.cost_per_m3, 2)}` : '—'} />
                 <DetailRow label="Cost per m²" value={r.cost_per_m2 != null ? `₹ ${formatNum(r.cost_per_m2, 2)}` : '—'} />
               </div>
@@ -133,13 +116,13 @@ function ViewModal({ record, onClose }) {
   )
 }
 
-// ─── Cost Panel ──────────────────────────────────────────────────────────────
+// ─── Cost Panel ───────────────────────────────────────────────────────────────
 
 function CostPanel({ record, onSaved, onCancel }) {
   const [prices, setPrices] = useState({ cementPrice: '', sandPrice: '', aggregatePrice: '', waterPrice: '', admixturePrice: '' })
   const [message, setMessage] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [result, setResult] = useState(null)
+  const [saving, setSaving]   = useState(false)
+  const [result, setResult]   = useState(null)
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -154,41 +137,27 @@ function CostPanel({ record, onSaved, onCancel }) {
     const requiredKeys = ['cementPrice', 'sandPrice', 'aggregatePrice', 'waterPrice']
     if (admixtureEnabled) requiredKeys.push('admixturePrice')
     const allFilled = requiredKeys.every((k) => prices[k] !== '' && Number(prices[k]) > 0)
-    if (!allFilled) {
-      setMessage('Enter all material prices to calculate cost.')
-      return
-    }
+    if (!allFilled) { setMessage('Enter all material prices to calculate cost.'); return }
 
-    setSaving(true)
-    setMessage('')
-
-    // Derive totals from saved per-m³ values × concrete volume
+    setSaving(true); setMessage('')
     const vol = record.concrete_volume ?? 0
     const area = record.area ?? 0
     const quantities = {
-      cementTotalKg:    (record.cement_content ?? 0) * vol,
+      cementTotalKg:    (record.cement_content  ?? 0) * vol,
       fineTotalKg:      (record.fine_aggregate  ?? 0) * vol,
       coarseTotalKg:    (record.coarse_aggregate ?? 0) * vol,
-      waterTotalLitres: (record.water_content    ?? 0) * vol,
+      waterTotalLitres: (record.water_content   ?? 0) * vol,
       admixtureQuantity: record.admixture_quantity ?? 0,
-      concreteVolume:   vol,
-      area,
+      concreteVolume: vol, area,
     }
-
     const pricesForUpdate = {
-      cementPrice:    prices.cementPrice,
-      sandPrice:      prices.sandPrice,
-      aggregatePrice: prices.aggregatePrice,
-      waterPrice:     prices.waterPrice,
+      cementPrice: prices.cementPrice, sandPrice: prices.sandPrice,
+      aggregatePrice: prices.aggregatePrice, waterPrice: prices.waterPrice,
       admixturePrice: admixtureEnabled ? prices.admixturePrice : '0',
     }
-
     try {
       const { data, error } = await updateCalculationCost(record.id, quantities, pricesForUpdate)
-      if (error) {
-        setMessage(error.message || 'Unable to save cost. Please try again.')
-        return
-      }
+      if (error) { setMessage(error.message || 'Unable to save cost. Please try again.'); return }
       setResult({ totalCost: data.total_cost, costPerM3: data.cost_per_m3, costPerM2: data.cost_per_m2 })
       setMessage('Cost calculated and saved.')
       onSaved(data)
@@ -204,10 +173,10 @@ function CostPanel({ record, onSaved, onCancel }) {
     <div className="cost-panel__body">
       <div className="cost-price-grid">
         {[
-          { key: 'cementPrice',    label: 'Cement (₹/kg)',                  placeholder: 'e.g. 8' },
-          { key: 'sandPrice',      label: 'Fine Aggregate / Sand (₹/kg)',   placeholder: 'e.g. 2' },
-          { key: 'aggregatePrice', label: 'Coarse Aggregate (₹/kg)',        placeholder: 'e.g. 1.5' },
-          { key: 'waterPrice',     label: 'Water (₹/litre)',                 placeholder: 'e.g. 0.05' },
+          { key: 'cementPrice',    label: 'Cement (₹/kg)',                 placeholder: 'e.g. 8' },
+          { key: 'sandPrice',      label: 'Fine Aggregate / Sand (₹/kg)',  placeholder: 'e.g. 2' },
+          { key: 'aggregatePrice', label: 'Coarse Aggregate (₹/kg)',       placeholder: 'e.g. 1.5' },
+          { key: 'waterPrice',     label: 'Water (₹/litre)',                placeholder: 'e.g. 0.05' },
           ...(record.admixture ? [{ key: 'admixturePrice', label: 'Admixture (₹/kg)', placeholder: 'e.g. 120' }] : []),
         ].map(({ key, label, placeholder }) => (
           <label key={key} className="cost-price-label">
@@ -246,22 +215,15 @@ function CostPanel({ record, onSaved, onCancel }) {
   )
 }
 
-// ─── Delete Confirm ──────────────────────────────────────────────────────────
+// ─── Delete Confirm ───────────────────────────────────────────────────────────
 
 function DeleteConfirm({ onConfirm, onCancel, isDeleting }) {
   return (
     <div className="history-delete-confirm" role="alertdialog" aria-label="Confirm deletion">
       <p>Delete this calculation?</p>
       <div className="history-delete-confirm__actions">
-        <button type="button" onClick={onCancel} disabled={isDeleting}>
-          Cancel
-        </button>
-        <button
-          type="button"
-          className="history-delete-btn--confirm"
-          onClick={onConfirm}
-          disabled={isDeleting}
-        >
+        <button type="button" onClick={onCancel} disabled={isDeleting}>Cancel</button>
+        <button type="button" className="history-delete-btn--confirm" onClick={onConfirm} disabled={isDeleting}>
           {isDeleting ? 'Deleting...' : 'Delete'}
         </button>
       </div>
@@ -269,35 +231,24 @@ function DeleteConfirm({ onConfirm, onCancel, isDeleting }) {
   )
 }
 
-// ─── History Card ────────────────────────────────────────────────────────────
+// ─── History Card ─────────────────────────────────────────────────────────────
 
 function HistoryCard({ record, onView, onDeleted, onCostUpdated }) {
-  const [showConfirm, setShowConfirm] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [deleteError, setDeleteError] = useState('')
+  const [showConfirm,   setShowConfirm]   = useState(false)
+  const [isDeleting,    setIsDeleting]    = useState(false)
+  const [deleteError,   setDeleteError]   = useState('')
   const [showCostPanel, setShowCostPanel] = useState(false)
   const navigate = useNavigate()
 
   const hasCost = record.total_cost != null
 
-  const handleTransfer = () => {
-    navigate('/calculator', { state: { transfer: record } })
-  }
+  const handleTransfer = () => navigate('/calculator', { state: { transfer: record } })
 
   const handleDeleteConfirmed = async () => {
-    setIsDeleting(true)
-    setDeleteError('')
-
+    setIsDeleting(true); setDeleteError('')
     try {
       const { error } = await deleteCalculation(record.id)
-
-      if (error) {
-        console.error('Delete error:', error)
-        setDeleteError('Unable to delete this calculation.')
-        setIsDeleting(false)
-        return
-      }
-
+      if (error) { console.error('Delete error:', error); setDeleteError('Unable to delete this calculation.'); setIsDeleting(false); return }
       onDeleted(record.id)
     } catch (err) {
       console.error('Unexpected delete error:', err)
@@ -342,9 +293,7 @@ function HistoryCard({ record, onView, onDeleted, onCostUpdated }) {
         )}
       </div>
 
-      {deleteError ? (
-        <p className="history-card__error" role="alert">{deleteError}</p>
-      ) : null}
+      {deleteError ? <p className="history-card__error" role="alert">{deleteError}</p> : null}
 
       {showCostPanel ? (
         <div className="history-card__cost-panel">
@@ -369,12 +318,8 @@ function HistoryCard({ record, onView, onDeleted, onCostUpdated }) {
           ) : (
             <button type="button" className="admixture-recommend-btn" onClick={() => setShowCostPanel(true)}>Calculate Cost</button>
           )}
-          <button
-            type="button"
-            className="excel-download-btn"
-            onClick={() => downloadCalculationExcel(record)}
-          >
-            ↓ Download Excel
+          <button type="button" className="excel-download-btn" onClick={() => downloadCalculationExcel(record)}>
+            ↓ Excel
           </button>
           <button type="button" className="history-delete-btn" onClick={() => setShowConfirm(true)}>Delete</button>
         </div>
@@ -383,34 +328,22 @@ function HistoryCard({ record, onView, onDeleted, onCostUpdated }) {
   )
 }
 
-// ─── History Page ────────────────────────────────────────────────────────────
+// ─── Recent Calculations section ──────────────────────────────────────────────
 
-export default function History() {
-  useContext(AuthContext)  // ensure auth is available
-
+function RecentCalculations() {
   const [calculations, setCalculations] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState('')
-  const [viewRecord, setViewRecord] = useState(null)
+  const [loading,      setLoading]      = useState(true)
+  const [loadError,    setLoadError]    = useState('')
+  const [viewRecord,   setViewRecord]   = useState(null)
 
   useEffect(() => {
     let cancelled = false
-
     const fetchHistory = async () => {
-      setLoading(true)
-      setLoadError('')
-
+      setLoading(true); setLoadError('')
       try {
         const { data, error } = await loadCalculations()
-
         if (cancelled) return
-
-        if (error) {
-          console.error('Load history error:', error)
-          setLoadError('Unable to load calculation history.')
-          return
-        }
-
+        if (error) { console.error('Load history error:', error); setLoadError('Unable to load calculation history.'); return }
         setCalculations(data ?? [])
       } catch (err) {
         if (cancelled) return
@@ -420,7 +353,6 @@ export default function History() {
         if (!cancelled) setLoading(false)
       }
     }
-
     fetchHistory()
     return () => { cancelled = true }
   }, [])
@@ -429,58 +361,80 @@ export default function History() {
     setCalculations((current) => current.filter((c) => c.id !== id))
     if (viewRecord?.id === id) setViewRecord(null)
   }
-
   const handleCostUpdated = (updatedRow) => {
-    setCalculations((current) =>
-      current.map((c) => (c.id === updatedRow.id ? { ...c, ...updatedRow } : c))
-    )
-    // Also refresh the view modal if it's open for this record
-    if (viewRecord?.id === updatedRow.id) {
-      setViewRecord((v) => ({ ...v, ...updatedRow }))
-    }
+    setCalculations((current) => current.map((c) => (c.id === updatedRow.id ? { ...c, ...updatedRow } : c)))
+    if (viewRecord?.id === updatedRow.id) setViewRecord((v) => ({ ...v, ...updatedRow }))
   }
 
   return (
-    <main className="page-shell history-page">
-      <header className="history-page__header">
-        <p className="eyebrow">Smart Concrete Mix Calculator</p>
-        <h1>Calculation History</h1>
-        <p className="page-copy">Your saved mix designs, newest first.</p>
-      </header>
+    <section className="home-history-section">
+      <div className="home-history-header">
+        <div>
+          <p className="eyebrow">Saved Mix Designs</p>
+          <h2 className="home-history-title">Recent Calculations</h2>
+        </div>
+        <Link to="/calculator" className="home-new-btn">
+          + New Mix Design
+        </Link>
+      </div>
 
-        {loading ? (
-          <div className="history-loading" aria-live="polite">Loading history...</div>
-        ) : loadError ? (
-          <div className="result-alert result-alert--error" role="alert">
-            <p>{loadError}</p>
-          </div>
-        ) : calculations.length === 0 ? (
-          <div className="history-empty card">
-            <p className="history-empty__title">No calculations yet.</p>
-            <p className="history-empty__body">
-              Start your first concrete mix design to see it here.
-            </p>
-            <Link to="/calculator" className="topbar__link history-empty__cta">
-              New Mix Design
-            </Link>
-          </div>
-        ) : (
-          <div className="history-list">
-            {calculations.map((record) => (
-              <HistoryCard
-                key={record.id}
-                record={record}
-                onView={setViewRecord}
-                onDeleted={handleDeleted}
-                onCostUpdated={handleCostUpdated}
-              />
-            ))}
-          </div>
-        )}
+      {loading ? (
+        <div className="history-loading" aria-live="polite">Loading calculations…</div>
+      ) : loadError ? (
+        <div className="result-alert result-alert--error" role="alert"><p>{loadError}</p></div>
+      ) : calculations.length === 0 ? (
+        <div className="history-empty card">
+          <p className="history-empty__title">No calculations yet.</p>
+          <p className="history-empty__body">Start your first concrete mix design to see it here.</p>
+          <Link to="/calculator" className="topbar__link history-empty__cta">New Mix Design</Link>
+        </div>
+      ) : (
+        <div className="history-list">
+          {calculations.map((record) => (
+            <HistoryCard
+              key={record.id}
+              record={record}
+              onView={setViewRecord}
+              onDeleted={handleDeleted}
+              onCostUpdated={handleCostUpdated}
+            />
+          ))}
+        </div>
+      )}
 
-      {viewRecord ? (
-        <ViewModal record={viewRecord} onClose={() => setViewRecord(null)} />
-      ) : null}
+      {viewRecord ? <ViewModal record={viewRecord} onClose={() => setViewRecord(null)} /> : null}
+    </section>
+  )
+}
+
+// ─── Home Page ────────────────────────────────────────────────────────────────
+
+export default function Home() {
+  const { user } = useContext(AuthContext)
+  const fullName = user?.user_metadata?.full_name || 'User'
+
+  return (
+    <main className="page-shell">
+      {/* Welcome hero */}
+      <section className="home-hero card">
+        <div className="home-hero__text">
+          <p className="eyebrow">Home</p>
+          <h1>Smart Concrete Mix Calculator</h1>
+          <p className="home-hero__welcome">Welcome back, <strong>{fullName}</strong></p>
+          <p className="home-hero__sub">
+            IS 10262 compliant mix design — calculate cement, aggregate, and water
+            proportions for any grade and exposure condition.
+          </p>
+        </div>
+        <div className="home-hero__actions">
+          <Link to="/calculator" className="home-cta-btn">
+            + New Mix Design
+          </Link>
+        </div>
+      </section>
+
+      {/* Inline history */}
+      <RecentCalculations />
     </main>
   )
 }
