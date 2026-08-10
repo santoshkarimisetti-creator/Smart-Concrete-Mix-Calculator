@@ -5,7 +5,7 @@ import { supabase } from './supabase.js'
  * Maps only to the columns that exist in the calculations table.
  * user_id is taken from the authenticated user — never from the form.
  */
-function buildPayload(userId, formData, result) {
+function buildPayload(userId, formData, result, costData) {
   const admixtureEnabled = Boolean(formData.admixture)
 
   // -- Inputs --
@@ -70,28 +70,34 @@ function buildPayload(userId, formData, result) {
     cement_bags: result.cement.bags ?? null,
   }
 
-  // Cost columns are always NULL on initial insert.
-  // Use updateCalculationCost() to write them after the user enters prices.
-  const costs = {
-    cement_price: null,
-    sand_price: null,
-    aggregate_price: null,
-    water_price: null,
-    admixture_price: null,
-    total_cost: null,
-    cost_per_m3: null,
-    cost_per_m2: null,
-  }
+  // -- Costs: include if provided, otherwise NULL --
+  const costs = costData
+    ? {
+        cement_price:    costData.cementPrice    ?? null,
+        sand_price:      costData.sandPrice       ?? null,
+        aggregate_price: costData.aggregatePrice  ?? null,
+        water_price:     costData.waterPrice      ?? null,
+        admixture_price: costData.admixturePrice  ?? null,
+        total_cost:      costData.totalCost       ?? null,
+        cost_per_m3:     costData.costPerM3       ?? null,
+        cost_per_m2:     costData.costPerM2       ?? null,
+      }
+    : {
+        cement_price: null, sand_price: null, aggregate_price: null,
+        water_price: null, admixture_price: null,
+        total_cost: null, cost_per_m3: null, cost_per_m2: null,
+      }
 
   return { ...inputs, ...results, ...costs }
 }
 
 /**
  * Save a completed mix design calculation to Supabase.
+ * costData is optional — pass it to include cost in the same INSERT.
  * Returns { data, error } — data is the inserted row.
  */
-export async function saveCalculation(userId, formData, result) {
-  const payload = buildPayload(userId, formData, result)
+export async function saveCalculation(userId, formData, result, costData) {
+  const payload = buildPayload(userId, formData, result, costData)
 
   const { data, error } = await supabase
     .from('calculations')

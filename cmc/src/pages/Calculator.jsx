@@ -1,16 +1,17 @@
-import { useContext, useMemo, useRef, useState } from 'react'
+import { useContext, useEffect, useMemo, useRef, useState } from 'react'
 
 import FormSection from '../components/FormSection.jsx'
 import InputField from '../components/InputField.jsx'
 import SelectField from '../components/SelectField.jsx'
 import { AuthContext } from '../context/AuthContext.jsx'
-import { saveCalculation, updateCalculationCost } from '../lib/calculations.js'
+import { saveCalculation } from '../lib/calculations.js'
 import { calculateMixDesign } from '../lib/mixDesignCalculator.js'
 import {
   getAdmixtureRecommendedValues,
   mixDesignDefaults,
   mixDesignOptions,
 } from '../data/mixDesignOptions.js'
+import { useLocation } from 'react-router-dom'
 
 const initialFormData = {
   concreteGrade: '',
@@ -155,7 +156,33 @@ function validateFormData(formData) {
 
 export default function Calculator() {
   const { user } = useContext(AuthContext)
-  const [formData, setFormData] = useState(initialFormData)
+  const location = useLocation()
+
+  // Pre-fill form when navigated from History via Transfer button
+  const transferData = location.state?.transfer ?? null
+
+  const [formData, setFormData] = useState(() => {
+    if (!transferData) return initialFormData
+    return {
+      concreteGrade:                 transferData.concrete_grade                  ?? '',
+      cementType:                    transferData.cement_type                     ?? '',
+      aggregateSize:                 transferData.aggregate_size                  ?? '',
+      exposureCondition:             transferData.exposure_condition              ?? '',
+      slump:                         transferData.slump            != null ? String(transferData.slump)            : '',
+      waterCementRatio:              transferData.water_cement_ratio != null ? String(transferData.water_cement_ratio) : '',
+      cementSpecificGravity:         transferData.cement_specific_gravity != null ? String(transferData.cement_specific_gravity) : '',
+      fineAggregateSpecificGravity:  transferData.fine_aggregate_specific_gravity != null ? String(transferData.fine_aggregate_specific_gravity) : '',
+      coarseAggregateSpecificGravity:transferData.coarse_aggregate_specific_gravity != null ? String(transferData.coarse_aggregate_specific_gravity) : '',
+      admixture:                     Boolean(transferData.admixture),
+      admixtureType:                 transferData.admixture_type                  ?? '',
+      admixtureDosage:               transferData.admixture_dosage != null ? String(transferData.admixture_dosage) : '',
+      admixtureSpecificGravity:      transferData.admixture_specific_gravity != null ? String(transferData.admixture_specific_gravity) : '',
+      admixtureWaterReduction:       transferData.water_reduction_percent != null ? String(transferData.water_reduction_percent) : '',
+      area:                          transferData.area      != null ? String(transferData.area)      : '',
+      thickness:                     transferData.thickness != null ? String(transferData.thickness) : '',
+    }
+  })
+
   const [errors, setErrors] = useState({})
   const [successMessage, setSuccessMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -164,12 +191,19 @@ export default function Calculator() {
   const [saveMessage, setSaveMessage] = useState('')
   const [savedId, setSavedId] = useState(null)
 
-  // Cost estimation (optional, only after save)
+  // Cost estimation — available as soon as submittedResult exists
   const [showCostPanel, setShowCostPanel] = useState(false)
   const [costPrices, setCostPrices] = useState({ cementPrice: '', sandPrice: '', aggregatePrice: '', waterPrice: '', admixturePrice: '' })
-  const [costResult, setCostResult] = useState(null)   // { totalCost, costPerM3, costPerM2 }
+  const [costResult, setCostResult] = useState(null) // computed cost; null = not yet calculated
   const [costMessage, setCostMessage] = useState('')
-  const [isCalculatingCost, setIsCalculatingCost] = useState(false)
+
+  // Clear transfer state from history so a back-navigation doesn't re-apply it
+  useEffect(() => {
+    if (transferData) {
+      window.history.replaceState({}, '')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const savingRef = useRef(false)
 
@@ -289,7 +323,8 @@ export default function Calculator() {
     setSaveMessage('')
 
     try {
-      const { data, error } = await saveCalculation(user.id, formData, submittedResult)
+      // Pass costResult if the user has already calculated cost — saves in one INSERT
+      const { data, error } = await saveCalculation(user.id, formData, submittedResult, costResult ?? undefined)
 
       if (error) {
         console.error('Save calculation error:', error.message, error.details, error.hint)
@@ -299,6 +334,7 @@ export default function Calculator() {
 
       setSavedId(data?.id ?? true)
       setSaveMessage('Calculation saved successfully.')
+      setShowCostPanel(false) // collapse price inputs after save
     } catch (err) {
       console.error('Unexpected save error:', err)
       setSaveMessage('Unable to save this calculation. Please try again.')
@@ -315,58 +351,48 @@ export default function Calculator() {
     setCostResult(null)
   }
 
-  const handleCostCalculate = async () => {
-    if (!savedId || !submittedResult || isCalculatingCost) return
+  // Compute cost LOCALLY from submittedResult quantities — no DB call
+  const handleCostCalculate = () => {
+    if (!submittedResult) return
 
     const admixtureEnabled = submittedResult.admixture.enabled
-    const prices = {
-      cementPrice:    costPrices.cementPrice,
-      sandPrice:      costPrices.sandPrice,
-      aggregatePrice: costPrices.aggregatePrice,
-      waterPrice:     costPrices.waterPrice,
-      admixturePrice: admixtureEnabled ? costPrices.admixturePrice : '0',
-    }
+    const cp  = Number(costPrices.cementPrice)
+    const sp  = Number(costPrices.sandPrice)
+    const ap  = Number(costPrices.aggregatePrice)
+    const wp  = Number(costPrices.waterPrice)
+    const adp = Number(costPrices.admixturePrice)
 
-    const requiredPrices = [prices.cementPrice, prices.sandPrice, prices.aggregatePrice, prices.waterPrice]
-    if (admixtureEnabled) requiredPrices.push(prices.admixturePrice)
-    const allFilled = requiredPrices.every((v) => v !== '' && Number(v) > 0)
+    const requiredOk = [cp, sp, ap, wp].every((v) => Number.isFinite(v) && v > 0) &&
+      (!admixtureEnabled || (Number.isFinite(adp) && adp >= 0))
 
-    if (!allFilled) {
+    if (!requiredOk) {
       setCostMessage('Enter all material prices to calculate cost.')
       return
     }
 
-    setIsCalculatingCost(true)
+    const cementTotal    = submittedResult.cement.totalKg         ?? 0
+    const fineTotal      = submittedResult.aggregates.fineTotalKg  ?? 0
+    const coarseTotal    = submittedResult.aggregates.coarseTotalKg ?? 0
+    const waterLitres    = submittedResult.water.totalLitres       ?? 0
+    const admixtureKg   = submittedResult.admixture.quantity       ?? 0
+    const concreteVol   = submittedResult.volume.concreteVolume    ?? 0
+    const area          = submittedResult.volume.area              ?? 0
+    const admixturePrice = admixtureEnabled ? adp : 0
+
+    const totalCost = cementTotal * cp + fineTotal * sp + coarseTotal * ap +
+                      waterLitres * wp + admixtureKg * admixturePrice
+
+    setCostResult({
+      cementPrice:    cp,
+      sandPrice:      sp,
+      aggregatePrice: ap,
+      waterPrice:     wp,
+      admixturePrice: admixtureEnabled ? adp : null,
+      totalCost,
+      costPerM3: concreteVol > 0 ? totalCost / concreteVol : null,
+      costPerM2: area > 0        ? totalCost / area        : null,
+    })
     setCostMessage('')
-
-    const quantities = {
-      cementTotalKg:    submittedResult.cement.totalKg,
-      fineTotalKg:      submittedResult.aggregates.fineTotalKg,
-      coarseTotalKg:    submittedResult.aggregates.coarseTotalKg,
-      waterTotalLitres: submittedResult.water.totalLitres,
-      admixtureQuantity: submittedResult.admixture.quantity,
-      concreteVolume:   submittedResult.volume.concreteVolume,
-      area:             submittedResult.volume.area,
-    }
-
-    try {
-      const { data, error } = await updateCalculationCost(savedId, quantities, prices)
-      if (error) {
-        setCostMessage(error.message || 'Unable to save cost. Please try again.')
-        return
-      }
-      setCostResult({
-        totalCost:  data.total_cost,
-        costPerM3:  data.cost_per_m3,
-        costPerM2:  data.cost_per_m2,
-      })
-      setCostMessage('Cost calculated and saved.')
-    } catch (err) {
-      console.error('Cost update error:', err)
-      setCostMessage('Unable to save cost. Please try again.')
-    } finally {
-      setIsCalculatingCost(false)
-    }
   }
 
   return (
@@ -892,107 +918,88 @@ export default function Calculator() {
           <section className="results-subsection cost-panel">
             <div className="cost-panel__header">
               <h3>Cost Estimation</h3>
-              {!showCostPanel && (
+              {!showCostPanel && !savedId && (
                 <button
                   type="button"
                   className="admixture-recommend-btn"
                   onClick={() => setShowCostPanel(true)}
                 >
-                  Calculate Cost
+                  {costResult ? 'Edit Prices' : 'Calculate Cost'}
                 </button>
               )}
+              {!showCostPanel && savedId && costResult && (
+                <span className="save-message save-message--ok">Cost saved with calculation ✓</span>
+              )}
+              {!showCostPanel && !savedId && costResult && (
+                <span className="save-message save-message--ok">Cost ready — will be saved with calculation</span>
+              )}
             </div>
+
+            {/* Inline cost summary when computed but panel is closed */}
+            {!showCostPanel && costResult && (
+              <div className="cost-results">
+                <div className="cost-result-item">
+                  <span>Total Cost</span>
+                  <strong>₹ {Number(costResult.totalCost).toFixed(2)}</strong>
+                </div>
+                <div className="cost-result-item">
+                  <span>Cost / m³</span>
+                  <strong>{costResult.costPerM3 != null ? `₹ ${Number(costResult.costPerM3).toFixed(2)}` : '—'}</strong>
+                </div>
+                <div className="cost-result-item">
+                  <span>Cost / m²</span>
+                  <strong>{costResult.costPerM2 != null ? `₹ ${Number(costResult.costPerM2).toFixed(2)}` : '—'}</strong>
+                </div>
+              </div>
+            )}
 
             {showCostPanel && (
               <div className="cost-panel__body">
                 <div className="cost-price-grid">
                   <label className="cost-price-label">
                     Cement (₹/kg)
-                    <input
-                      type="number"
-                      name="cementPrice"
-                      value={costPrices.cementPrice}
-                      onChange={handleCostPriceChange}
-                      min="0"
-                      placeholder="e.g. 8"
-                      className="cost-price-input"
-                    />
+                    <input type="number" name="cementPrice" value={costPrices.cementPrice}
+                      onChange={handleCostPriceChange} min="0" placeholder="e.g. 8" className="cost-price-input" />
                   </label>
                   <label className="cost-price-label">
                     Fine Aggregate / Sand (₹/kg)
-                    <input
-                      type="number"
-                      name="sandPrice"
-                      value={costPrices.sandPrice}
-                      onChange={handleCostPriceChange}
-                      min="0"
-                      placeholder="e.g. 2"
-                      className="cost-price-input"
-                    />
+                    <input type="number" name="sandPrice" value={costPrices.sandPrice}
+                      onChange={handleCostPriceChange} min="0" placeholder="e.g. 2" className="cost-price-input" />
                   </label>
                   <label className="cost-price-label">
                     Coarse Aggregate (₹/kg)
-                    <input
-                      type="number"
-                      name="aggregatePrice"
-                      value={costPrices.aggregatePrice}
-                      onChange={handleCostPriceChange}
-                      min="0"
-                      placeholder="e.g. 1.5"
-                      className="cost-price-input"
-                    />
+                    <input type="number" name="aggregatePrice" value={costPrices.aggregatePrice}
+                      onChange={handleCostPriceChange} min="0" placeholder="e.g. 1.5" className="cost-price-input" />
                   </label>
                   <label className="cost-price-label">
                     Water (₹/litre)
-                    <input
-                      type="number"
-                      name="waterPrice"
-                      value={costPrices.waterPrice}
-                      onChange={handleCostPriceChange}
-                      min="0"
-                      placeholder="e.g. 0.05"
-                      className="cost-price-input"
-                    />
+                    <input type="number" name="waterPrice" value={costPrices.waterPrice}
+                      onChange={handleCostPriceChange} min="0" placeholder="e.g. 0.05" className="cost-price-input" />
                   </label>
                   {submittedResult.admixture.enabled && (
                     <label className="cost-price-label">
                       Admixture (₹/kg)
-                      <input
-                        type="number"
-                        name="admixturePrice"
-                        value={costPrices.admixturePrice}
-                        onChange={handleCostPriceChange}
-                        min="0"
-                        placeholder="e.g. 120"
-                        className="cost-price-input"
-                      />
+                      <input type="number" name="admixturePrice" value={costPrices.admixturePrice}
+                        onChange={handleCostPriceChange} min="0" placeholder="e.g. 120" className="cost-price-input" />
                     </label>
                   )}
                 </div>
 
                 <div className="cost-panel__actions">
-                  <button
-                    type="button"
-                    className="submit-button"
-                    onClick={handleCostCalculate}
-                    disabled={isCalculatingCost || !savedId}
-                    title={!savedId ? 'Save the calculation first before adding cost' : ''}
-                  >
-                    {isCalculatingCost ? 'Saving...' : 'Calculate Cost'}
+                  <button type="button" className="submit-button" onClick={handleCostCalculate}>
+                    Calculate Cost
                   </button>
                   <button
                     type="button"
                     className="history-delete-btn"
-                    onClick={() => { setShowCostPanel(false); setCostResult(null); setCostMessage('') }}
+                    onClick={() => { setShowCostPanel(false); setCostMessage('') }}
                   >
                     Cancel
                   </button>
                 </div>
 
                 {costMessage && (
-                  <p role="status" className={`save-message ${costMessage.includes('saved') ? 'save-message--ok' : 'save-message--err'}`}>
-                    {costMessage}
-                  </p>
+                  <p role="status" className="save-message save-message--err">{costMessage}</p>
                 )}
 
                 {costResult && (

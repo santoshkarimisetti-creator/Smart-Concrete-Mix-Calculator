@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 import { AuthContext } from '../context/AuthContext.jsx'
 import { deleteCalculation, loadCalculations, updateCalculationCost } from '../lib/calculations.js'
@@ -276,6 +276,13 @@ function HistoryCard({ record, onView, onDeleted, onCostUpdated }) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState('')
   const [showCostPanel, setShowCostPanel] = useState(false)
+  const navigate = useNavigate()
+
+  const hasCost = record.total_cost != null
+
+  const handleTransfer = () => {
+    navigate('/calculator', { state: { transfer: record } })
+  }
 
   const handleDeleteConfirmed = async () => {
     setIsDeleting(true)
@@ -356,7 +363,12 @@ function HistoryCard({ record, onView, onDeleted, onCostUpdated }) {
       ) : (
         <div className="history-card__actions">
           <button type="button" className="topbar__link" onClick={() => onView(record)}>View</button>
-          <button type="button" className="admixture-recommend-btn" onClick={() => setShowCostPanel(true)}>Calculate Cost</button>
+          <button type="button" className="history-card__transfer-btn" onClick={handleTransfer} title="Open inputs in calculator">Transfer</button>
+          {hasCost ? (
+            <span className="history-card__cost-badge">Cost Added ✓</span>
+          ) : (
+            <button type="button" className="admixture-recommend-btn" onClick={() => setShowCostPanel(true)}>Calculate Cost</button>
+          )}
           <button type="button" className="history-delete-btn" onClick={() => setShowConfirm(true)}>Delete</button>
         </div>
       )}
