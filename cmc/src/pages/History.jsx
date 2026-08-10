@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { AuthContext } from '../context/AuthContext.jsx'
-import { deleteCalculation, loadCalculations } from '../lib/calculations.js'
+import { deleteCalculation, loadCalculations, updateCalculationCost } from '../lib/calculations.js'
 import Navbar from '../components/Navbar.jsx'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -133,6 +133,119 @@ function ViewModal({ record, onClose }) {
   )
 }
 
+// ─── Cost Panel ──────────────────────────────────────────────────────────────
+
+function CostPanel({ record, onSaved, onCancel }) {
+  const [prices, setPrices] = useState({ cementPrice: '', sandPrice: '', aggregatePrice: '', waterPrice: '', admixturePrice: '' })
+  const [message, setMessage] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [result, setResult] = useState(null)
+
+  const handleChange = (e) => {
+    const { name, value } = e.target
+    setPrices((p) => ({ ...p, [name]: value }))
+    setMessage('')
+    setResult(null)
+  }
+
+  const handleCalculate = async () => {
+    if (saving) return
+    const admixtureEnabled = Boolean(record.admixture)
+    const requiredKeys = ['cementPrice', 'sandPrice', 'aggregatePrice', 'waterPrice']
+    if (admixtureEnabled) requiredKeys.push('admixturePrice')
+    const allFilled = requiredKeys.every((k) => prices[k] !== '' && Number(prices[k]) > 0)
+    if (!allFilled) {
+      setMessage('Enter all material prices to calculate cost.')
+      return
+    }
+
+    setSaving(true)
+    setMessage('')
+
+    // Derive totals from saved per-m³ values × concrete volume
+    const vol = record.concrete_volume ?? 0
+    const area = record.area ?? 0
+    const quantities = {
+      cementTotalKg:    (record.cement_content ?? 0) * vol,
+      fineTotalKg:      (record.fine_aggregate  ?? 0) * vol,
+      coarseTotalKg:    (record.coarse_aggregate ?? 0) * vol,
+      waterTotalLitres: (record.water_content    ?? 0) * vol,
+      admixtureQuantity: record.admixture_quantity ?? 0,
+      concreteVolume:   vol,
+      area,
+    }
+
+    const pricesForUpdate = {
+      cementPrice:    prices.cementPrice,
+      sandPrice:      prices.sandPrice,
+      aggregatePrice: prices.aggregatePrice,
+      waterPrice:     prices.waterPrice,
+      admixturePrice: admixtureEnabled ? prices.admixturePrice : '0',
+    }
+
+    try {
+      const { data, error } = await updateCalculationCost(record.id, quantities, pricesForUpdate)
+      if (error) {
+        setMessage(error.message || 'Unable to save cost. Please try again.')
+        return
+      }
+      setResult({ totalCost: data.total_cost, costPerM3: data.cost_per_m3, costPerM2: data.cost_per_m2 })
+      setMessage('Cost calculated and saved.')
+      onSaved(data)
+    } catch (err) {
+      console.error('Cost update error:', err)
+      setMessage('Unable to save cost. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="cost-panel__body">
+      <div className="cost-price-grid">
+        {[
+          { key: 'cementPrice',    label: 'Cement (₹/kg)',                  placeholder: 'e.g. 8' },
+          { key: 'sandPrice',      label: 'Fine Aggregate / Sand (₹/kg)',   placeholder: 'e.g. 2' },
+          { key: 'aggregatePrice', label: 'Coarse Aggregate (₹/kg)',        placeholder: 'e.g. 1.5' },
+          { key: 'waterPrice',     label: 'Water (₹/litre)',                 placeholder: 'e.g. 0.05' },
+          ...(record.admixture ? [{ key: 'admixturePrice', label: 'Admixture (₹/kg)', placeholder: 'e.g. 120' }] : []),
+        ].map(({ key, label, placeholder }) => (
+          <label key={key} className="cost-price-label">
+            {label}
+            <input
+              type="number"
+              name={key}
+              value={prices[key]}
+              onChange={handleChange}
+              min="0"
+              placeholder={placeholder}
+              className="cost-price-input"
+            />
+          </label>
+        ))}
+      </div>
+      <div className="cost-panel__actions">
+        <button type="button" className="submit-button" onClick={handleCalculate} disabled={saving}>
+          {saving ? 'Saving...' : 'Calculate Cost'}
+        </button>
+        <button type="button" className="history-delete-btn" onClick={onCancel}>Cancel</button>
+      </div>
+      {message && (
+        <p role="status" className={`save-message ${message.includes('saved') ? 'save-message--ok' : 'save-message--err'}`}>
+          {message}
+        </p>
+      )}
+      {result && (
+        <div className="cost-results">
+          <div className="cost-result-item"><span>Total Cost</span><strong>₹ {Number(result.totalCost).toFixed(2)}</strong></div>
+          <div className="cost-result-item"><span>Cost / m³</span><strong>{result.costPerM3 != null ? `₹ ${Number(result.costPerM3).toFixed(2)}` : '—'}</strong></div>
+          <div className="cost-result-item"><span>Cost / m²</span><strong>{result.costPerM2 != null ? `₹ ${Number(result.costPerM2).toFixed(2)}` : '—'}</strong></div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Delete Confirm ──────────────────────────────────────────────────────────
 
 function DeleteConfirm({ onConfirm, onCancel, isDeleting }) {
@@ -158,10 +271,11 @@ function DeleteConfirm({ onConfirm, onCancel, isDeleting }) {
 
 // ─── History Card ────────────────────────────────────────────────────────────
 
-function HistoryCard({ record, onView, onDeleted }) {
+function HistoryCard({ record, onView, onDeleted, onCostUpdated }) {
   const [showConfirm, setShowConfirm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState('')
+  const [showCostPanel, setShowCostPanel] = useState(false)
 
   const handleDeleteConfirmed = async () => {
     setIsDeleting(true)
@@ -213,13 +327,27 @@ function HistoryCard({ record, onView, onDeleted }) {
           <span>Mix Ratio</span>
           <strong>{record.mix_ratio ?? '—'}</strong>
         </div>
+        {record.total_cost != null && (
+          <div className="history-card__metric">
+            <span>Total Cost</span>
+            <strong>₹ {formatNum(record.total_cost, 2)}</strong>
+          </div>
+        )}
       </div>
 
       {deleteError ? (
         <p className="history-card__error" role="alert">{deleteError}</p>
       ) : null}
 
-      {showConfirm ? (
+      {showCostPanel ? (
+        <div className="history-card__cost-panel">
+          <CostPanel
+            record={record}
+            onSaved={(updated) => { onCostUpdated(updated); setShowCostPanel(false) }}
+            onCancel={() => setShowCostPanel(false)}
+          />
+        </div>
+      ) : showConfirm ? (
         <DeleteConfirm
           onConfirm={handleDeleteConfirmed}
           onCancel={() => { setShowConfirm(false); setDeleteError('') }}
@@ -227,16 +355,9 @@ function HistoryCard({ record, onView, onDeleted }) {
         />
       ) : (
         <div className="history-card__actions">
-          <button type="button" className="topbar__link" onClick={() => onView(record)}>
-            View
-          </button>
-          <button
-            type="button"
-            className="history-delete-btn"
-            onClick={() => setShowConfirm(true)}
-          >
-            Delete
-          </button>
+          <button type="button" className="topbar__link" onClick={() => onView(record)}>View</button>
+          <button type="button" className="admixture-recommend-btn" onClick={() => setShowCostPanel(true)}>Calculate Cost</button>
+          <button type="button" className="history-delete-btn" onClick={() => setShowConfirm(true)}>Delete</button>
         </div>
       )}
     </article>
@@ -287,6 +408,17 @@ export default function History() {
 
   const handleDeleted = (id) => {
     setCalculations((current) => current.filter((c) => c.id !== id))
+    if (viewRecord?.id === id) setViewRecord(null)
+  }
+
+  const handleCostUpdated = (updatedRow) => {
+    setCalculations((current) =>
+      current.map((c) => (c.id === updatedRow.id ? { ...c, ...updatedRow } : c))
+    )
+    // Also refresh the view modal if it's open for this record
+    if (viewRecord?.id === updatedRow.id) {
+      setViewRecord((v) => ({ ...v, ...updatedRow }))
+    }
   }
 
   return (
@@ -323,6 +455,7 @@ export default function History() {
                 record={record}
                 onView={setViewRecord}
                 onDeleted={handleDeleted}
+                onCostUpdated={handleCostUpdated}
               />
             ))}
           </div>

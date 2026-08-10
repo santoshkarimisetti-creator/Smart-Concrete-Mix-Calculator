@@ -57,13 +57,10 @@ function buildPayload(userId, formData, result) {
     water_content: result.water.contentPerM3 ?? null,
     cement_content: result.cement.adoptedPerM3 ?? null,
 
-    // NOTE: cement_volume, water_volume, aggregate_volume, admixture_volume columns
-    // do not exist in the Supabase table yet. Add those columns in Supabase first,
-    // then uncomment these four lines:
-    // cement_volume: result.cement.volume ?? null,
-    // water_volume: result.water.volume ?? null,
-    // aggregate_volume: result.aggregates.totalVolumePerM3 ?? null,
-    // admixture_volume: result.admixture.volume ?? 0,
+    cement_volume: result.cement.volume ?? null,
+    water_volume: result.water.volume ?? null,
+    aggregate_volume: result.aggregates.totalVolumePerM3 ?? null,
+    admixture_volume: result.admixture.volume ?? 0,
 
     fine_aggregate: result.aggregates.fineKgPerM3 ?? null,
     coarse_aggregate: result.aggregates.coarseKgPerM3 ?? null,
@@ -73,31 +70,18 @@ function buildPayload(userId, formData, result) {
     cement_bags: result.cement.bags ?? null,
   }
 
-  // -- Costs (only save if prices were entered and costs were calculated) --
-  const hasCosts = result.cost.totalCost != null
-  const costs = hasCosts
-    ? {
-        cement_price: result.cost.cementCost != null ? Number(formData.cementPrice) || null : null,
-        sand_price: result.cost.sandCost != null ? Number(formData.sandPrice) || null : null,
-        aggregate_price:
-          result.cost.aggregateCost != null ? Number(formData.aggregatePrice) || null : null,
-        water_price: result.cost.waterCost != null ? Number(formData.waterPrice) || null : null,
-        admixture_price:
-          result.cost.admixtureCost != null ? Number(formData.admixturePrice) || null : null,
-        total_cost: result.cost.totalCost ?? null,
-        cost_per_m3: result.cost.costPerM3 ?? null,
-        cost_per_m2: result.cost.costPerM2 ?? null,
-      }
-    : {
-        cement_price: null,
-        sand_price: null,
-        aggregate_price: null,
-        water_price: null,
-        admixture_price: null,
-        total_cost: null,
-        cost_per_m3: null,
-        cost_per_m2: null,
-      }
+  // Cost columns are always NULL on initial insert.
+  // Use updateCalculationCost() to write them after the user enters prices.
+  const costs = {
+    cement_price: null,
+    sand_price: null,
+    aggregate_price: null,
+    water_price: null,
+    admixture_price: null,
+    total_cost: null,
+    cost_per_m3: null,
+    cost_per_m2: null,
+  }
 
   return { ...inputs, ...results, ...costs }
 }
@@ -142,4 +126,54 @@ export async function deleteCalculation(id) {
     .eq('id', id)
 
   return { error }
+}
+
+/**
+ * Update ONLY the cost columns for an existing calculation row.
+ * Does not touch any mix-design input or result columns.
+ * quantities: { cementTotalKg, fineTotalKg, coarseTotalKg, waterTotalLitres, admixtureQuantity, concreteVolume, area }
+ * prices:     { cementPrice, sandPrice, aggregatePrice, waterPrice, admixturePrice }
+ */
+export async function updateCalculationCost(id, quantities, prices) {
+  const cp = Number(prices.cementPrice)
+  const sp = Number(prices.sandPrice)
+  const ap = Number(prices.aggregatePrice)
+  const wp = Number(prices.waterPrice)
+  const adp = Number(prices.admixturePrice)
+
+  if (![cp, sp, ap, wp].every(Number.isFinite) || cp <= 0 || sp <= 0 || ap <= 0 || wp <= 0) {
+    return { data: null, error: { message: 'All material prices must be valid positive numbers.' } }
+  }
+
+  const admixturePrice = Number.isFinite(adp) && adp >= 0 ? adp : 0
+
+  const cementCost    = (quantities.cementTotalKg   ?? 0) * cp
+  const sandCost      = (quantities.fineTotalKg     ?? 0) * sp
+  const aggregateCost = (quantities.coarseTotalKg   ?? 0) * ap
+  const waterCost     = (quantities.waterTotalLitres ?? 0) * wp
+  const admixtureCost = (quantities.admixtureQuantity ?? 0) * admixturePrice
+  const totalCost     = cementCost + sandCost + aggregateCost + waterCost + admixtureCost
+
+  const concreteVolume = quantities.concreteVolume ?? 0
+  const area           = quantities.area ?? 0
+
+  const costPayload = {
+    cement_price:    cp,
+    sand_price:      sp,
+    aggregate_price: ap,
+    water_price:     wp,
+    admixture_price: admixturePrice || null,
+    total_cost:      totalCost,
+    cost_per_m3:     concreteVolume > 0 ? totalCost / concreteVolume : null,
+    cost_per_m2:     area > 0 ? totalCost / area : null,
+  }
+
+  const { data, error } = await supabase
+    .from('calculations')
+    .update(costPayload)
+    .eq('id', id)
+    .select()
+    .single()
+
+  return { data, error }
 }

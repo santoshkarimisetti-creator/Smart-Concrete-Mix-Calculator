@@ -4,7 +4,7 @@ import FormSection from '../components/FormSection.jsx'
 import InputField from '../components/InputField.jsx'
 import SelectField from '../components/SelectField.jsx'
 import { AuthContext } from '../context/AuthContext.jsx'
-import { saveCalculation } from '../lib/calculations.js'
+import { saveCalculation, updateCalculationCost } from '../lib/calculations.js'
 import { calculateMixDesign } from '../lib/mixDesignCalculator.js'
 import {
   getAdmixtureRecommendedValues,
@@ -164,6 +164,13 @@ export default function Calculator() {
   const [saveMessage, setSaveMessage] = useState('')
   const [savedId, setSavedId] = useState(null)
 
+  // Cost estimation (optional, only after save)
+  const [showCostPanel, setShowCostPanel] = useState(false)
+  const [costPrices, setCostPrices] = useState({ cementPrice: '', sandPrice: '', aggregatePrice: '', waterPrice: '', admixturePrice: '' })
+  const [costResult, setCostResult] = useState(null)   // { totalCost, costPerM3, costPerM2 }
+  const [costMessage, setCostMessage] = useState('')
+  const [isCalculatingCost, setIsCalculatingCost] = useState(false)
+
   const savingRef = useRef(false)
 
   const calculationResult = useMemo(
@@ -298,6 +305,67 @@ export default function Calculator() {
     } finally {
       savingRef.current = false
       setIsSaving(false)
+    }
+  }
+
+  const handleCostPriceChange = (e) => {
+    const { name, value } = e.target
+    setCostPrices((p) => ({ ...p, [name]: value }))
+    setCostMessage('')
+    setCostResult(null)
+  }
+
+  const handleCostCalculate = async () => {
+    if (!savedId || !submittedResult || isCalculatingCost) return
+
+    const admixtureEnabled = submittedResult.admixture.enabled
+    const prices = {
+      cementPrice:    costPrices.cementPrice,
+      sandPrice:      costPrices.sandPrice,
+      aggregatePrice: costPrices.aggregatePrice,
+      waterPrice:     costPrices.waterPrice,
+      admixturePrice: admixtureEnabled ? costPrices.admixturePrice : '0',
+    }
+
+    const requiredPrices = [prices.cementPrice, prices.sandPrice, prices.aggregatePrice, prices.waterPrice]
+    if (admixtureEnabled) requiredPrices.push(prices.admixturePrice)
+    const allFilled = requiredPrices.every((v) => v !== '' && Number(v) > 0)
+
+    if (!allFilled) {
+      setCostMessage('Enter all material prices to calculate cost.')
+      return
+    }
+
+    setIsCalculatingCost(true)
+    setCostMessage('')
+
+    const quantities = {
+      cementTotalKg:    submittedResult.cement.totalKg,
+      fineTotalKg:      submittedResult.aggregates.fineTotalKg,
+      coarseTotalKg:    submittedResult.aggregates.coarseTotalKg,
+      waterTotalLitres: submittedResult.water.totalLitres,
+      admixtureQuantity: submittedResult.admixture.quantity,
+      concreteVolume:   submittedResult.volume.concreteVolume,
+      area:             submittedResult.volume.area,
+    }
+
+    try {
+      const { data, error } = await updateCalculationCost(savedId, quantities, prices)
+      if (error) {
+        setCostMessage(error.message || 'Unable to save cost. Please try again.')
+        return
+      }
+      setCostResult({
+        totalCost:  data.total_cost,
+        costPerM3:  data.cost_per_m3,
+        costPerM2:  data.cost_per_m2,
+      })
+      setCostMessage('Cost calculated and saved.')
+    } catch (err) {
+      console.error('Cost update error:', err)
+      setCostMessage('Unable to save cost. Please try again.')
+    } finally {
+      setIsCalculatingCost(false)
     }
   }
 
@@ -775,8 +843,8 @@ export default function Calculator() {
 
             <CalculationDetails title="5. Absolute Volume">
               <div className="detail-grid">
-                <div><span>Cement Volume</span><strong>{formatNumber(submittedResult.cement.adoptedPerM3 === null ? null : submittedResult.cement.adoptedPerM3 / (Number(formData.cementSpecificGravity) * 1000), 4)}</strong></div>
-                <div><span>Water Volume</span><strong>{formatNumber(submittedResult.water.contentPerM3 === null ? null : submittedResult.water.contentPerM3 / 1000, 4)}</strong></div>
+                <div><span>Cement Volume</span><strong>{formatNumber(submittedResult.cement.volume, 4)}</strong></div>
+                <div><span>Water Volume</span><strong>{formatNumber(submittedResult.water.volume, 4)}</strong></div>
                 <div><span>Air Volume</span><strong>{formatNumber(submittedResult.air.volume, 4)}</strong></div>
                 <div><span>Admixture Volume</span><strong>{formatNumber(submittedResult.admixture.volume, 4)}</strong></div>
                 <div><span>Aggregate Volume</span><strong>{formatNumber(submittedResult.aggregates.totalVolumePerM3, 4)}</strong></div>
@@ -818,6 +886,133 @@ export default function Calculator() {
                 <div><span>Concrete Volume</span><strong>{formatNumber(submittedResult.volume.concreteVolume, 2)} m³</strong></div>
               </div>
             </CalculationDetails>
+          </section>
+
+          {/* ── Optional Cost Estimation Panel ───────────────────────── */}
+          <section className="results-subsection cost-panel">
+            <div className="cost-panel__header">
+              <h3>Cost Estimation</h3>
+              {!showCostPanel && (
+                <button
+                  type="button"
+                  className="admixture-recommend-btn"
+                  onClick={() => setShowCostPanel(true)}
+                >
+                  Calculate Cost
+                </button>
+              )}
+            </div>
+
+            {showCostPanel && (
+              <div className="cost-panel__body">
+                <div className="cost-price-grid">
+                  <label className="cost-price-label">
+                    Cement (₹/kg)
+                    <input
+                      type="number"
+                      name="cementPrice"
+                      value={costPrices.cementPrice}
+                      onChange={handleCostPriceChange}
+                      min="0"
+                      placeholder="e.g. 8"
+                      className="cost-price-input"
+                    />
+                  </label>
+                  <label className="cost-price-label">
+                    Fine Aggregate / Sand (₹/kg)
+                    <input
+                      type="number"
+                      name="sandPrice"
+                      value={costPrices.sandPrice}
+                      onChange={handleCostPriceChange}
+                      min="0"
+                      placeholder="e.g. 2"
+                      className="cost-price-input"
+                    />
+                  </label>
+                  <label className="cost-price-label">
+                    Coarse Aggregate (₹/kg)
+                    <input
+                      type="number"
+                      name="aggregatePrice"
+                      value={costPrices.aggregatePrice}
+                      onChange={handleCostPriceChange}
+                      min="0"
+                      placeholder="e.g. 1.5"
+                      className="cost-price-input"
+                    />
+                  </label>
+                  <label className="cost-price-label">
+                    Water (₹/litre)
+                    <input
+                      type="number"
+                      name="waterPrice"
+                      value={costPrices.waterPrice}
+                      onChange={handleCostPriceChange}
+                      min="0"
+                      placeholder="e.g. 0.05"
+                      className="cost-price-input"
+                    />
+                  </label>
+                  {submittedResult.admixture.enabled && (
+                    <label className="cost-price-label">
+                      Admixture (₹/kg)
+                      <input
+                        type="number"
+                        name="admixturePrice"
+                        value={costPrices.admixturePrice}
+                        onChange={handleCostPriceChange}
+                        min="0"
+                        placeholder="e.g. 120"
+                        className="cost-price-input"
+                      />
+                    </label>
+                  )}
+                </div>
+
+                <div className="cost-panel__actions">
+                  <button
+                    type="button"
+                    className="submit-button"
+                    onClick={handleCostCalculate}
+                    disabled={isCalculatingCost || !savedId}
+                    title={!savedId ? 'Save the calculation first before adding cost' : ''}
+                  >
+                    {isCalculatingCost ? 'Saving...' : 'Calculate Cost'}
+                  </button>
+                  <button
+                    type="button"
+                    className="history-delete-btn"
+                    onClick={() => { setShowCostPanel(false); setCostResult(null); setCostMessage('') }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+
+                {costMessage && (
+                  <p role="status" className={`save-message ${costMessage.includes('saved') ? 'save-message--ok' : 'save-message--err'}`}>
+                    {costMessage}
+                  </p>
+                )}
+
+                {costResult && (
+                  <div className="cost-results">
+                    <div className="cost-result-item">
+                      <span>Total Cost</span>
+                      <strong>₹ {Number(costResult.totalCost).toFixed(2)}</strong>
+                    </div>
+                    <div className="cost-result-item">
+                      <span>Cost / m³</span>
+                      <strong>{costResult.costPerM3 != null ? `₹ ${Number(costResult.costPerM3).toFixed(2)}` : '—'}</strong>
+                    </div>
+                    <div className="cost-result-item">
+                      <span>Cost / m²</span>
+                      <strong>{costResult.costPerM2 != null ? `₹ ${Number(costResult.costPerM2).toFixed(2)}` : '—'}</strong>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </section>
         </section>
       ) : null}
