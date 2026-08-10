@@ -33,3 +33,23 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+
+# Vite / Rollup cache
+.vite/
+.rollup.cache/
+
+# Test and debug artifacts
+*.xlsx
+*.csv
+test_*.mjs
+diagnose.py
+validate_xlsx.py
+
+# Coverage
+coverage/
+*.lcov
+
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini

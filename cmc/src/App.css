@@ -929,3 +929,32 @@
   font-size: 0.88rem;
   font-weight: 600;
 }
+
+/* ─── Excel Download Button ────────────────────────────────────────────────── */
+
+.excel-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 42px;
+  padding: 0 18px;
+  background: rgba(5, 150, 105, 0.08);
+  border: 1px solid rgba(5, 150, 105, 0.30);
+  border-radius: 12px;
+  color: #065f46;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.excel-download-btn:hover {
+  background: rgba(5, 150, 105, 0.15);
+  border-color: rgba(5, 150, 105, 0.55);
+}
+
+.excel-download-btn:active {
+  background: rgba(5, 150, 105, 0.22);
+}

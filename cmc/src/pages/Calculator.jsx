@@ -6,6 +6,7 @@ import SelectField from '../components/SelectField.jsx'
 import { AuthContext } from '../context/AuthContext.jsx'
 import { saveCalculation } from '../lib/calculations.js'
 import { calculateMixDesign } from '../lib/mixDesignCalculator.js'
+import { downloadResultExcel } from '../utils/exportExcel.js'
 import {
   getAdmixtureRecommendedValues,
   mixDesignDefaults,
@@ -691,6 +692,13 @@ export default function Calculator() {
                 disabled={isSaving || Boolean(savedId)}
               >
                 {isSaving ? 'Saving...' : savedId ? 'Saved ✓' : 'Save Calculation'}
+              </button>
+              <button
+                type="button"
+                className="excel-download-btn"
+                onClick={() => downloadResultExcel(formData, submittedResult, costResult)}
+              >
+                ↓ Download Excel
               </button>
               {saveMessage ? (
                 <p

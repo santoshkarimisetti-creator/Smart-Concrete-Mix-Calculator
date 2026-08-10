@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { AuthContext } from '../context/AuthContext.jsx'
 import { deleteCalculation, loadCalculations, updateCalculationCost } from '../lib/calculations.js'
 import Navbar from '../components/Navbar.jsx'
+import { downloadCalculationExcel } from '../utils/exportExcel.js'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -369,6 +370,13 @@ function HistoryCard({ record, onView, onDeleted, onCostUpdated }) {
           ) : (
             <button type="button" className="admixture-recommend-btn" onClick={() => setShowCostPanel(true)}>Calculate Cost</button>
           )}
+          <button
+            type="button"
+            className="excel-download-btn"
+            onClick={() => downloadCalculationExcel(record)}
+          >
+            ↓ Download Excel
+          </button>
           <button type="button" className="history-delete-btn" onClick={() => setShowConfirm(true)}>Delete</button>
         </div>
       )}
