@@ -51,16 +51,37 @@ function buildPayload(userId, formData, result, costData) {
   }
 
   // -- Results --
+  const cementVol    = result.cement.volume                   ?? null
+  const waterVol     = result.water.volume                    ?? null
+  const fineVol      = result.aggregates.fineVolumePerM3      ?? null
+  const coarseVol    = result.aggregates.coarseVolumePerM3    ?? null
+  const admixtureVol = result.admixture.volume                ?? 0
+  const airVol       = result.air.volume                      ?? null
+
+  const totalAbsoluteVolume =
+    cementVol !== null &&
+    waterVol  !== null &&
+    fineVol   !== null &&
+    coarseVol !== null &&
+    airVol    !== null
+      ? cementVol + waterVol + fineVol + coarseVol + admixtureVol + airVol
+      : null
+
   const results = {
     concrete_volume: result.volume.concreteVolume ?? null,
     target_mean_strength: result.strength.targetMeanStrength ?? null,
     water_content: result.water.contentPerM3 ?? null,
     cement_content: result.cement.adoptedPerM3 ?? null,
 
-    cement_volume: result.cement.volume ?? null,
-    water_volume: result.water.volume ?? null,
+    cement_volume:    cementVol,
+    water_volume:     waterVol,
     aggregate_volume: result.aggregates.totalVolumePerM3 ?? null,
-    admixture_volume: result.admixture.volume ?? 0,
+    admixture_volume: admixtureVol,
+
+    fine_aggregate_volume:   fineVol,
+    coarse_aggregate_volume: coarseVol,
+    air_volume:              airVol,
+    total_absolute_volume:   totalAbsoluteVolume,
 
     fine_aggregate: result.aggregates.fineKgPerM3 ?? null,
     coarse_aggregate: result.aggregates.coarseKgPerM3 ?? null,

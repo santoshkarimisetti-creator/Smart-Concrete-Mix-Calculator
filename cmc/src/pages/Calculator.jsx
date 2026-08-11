@@ -313,6 +313,10 @@ export default function Calculator() {
     setIsSubmitting(true)
     setSaveMessage('')
     setSavedId(null)
+    // Clear previous cost result whenever a new mix design is calculated
+    setCostResult(null)
+    setShowCostPanel(false)
+    setCostMessage('')
 
     try {
       setSubmittedResult(calculationResult)
@@ -401,6 +405,7 @@ export default function Calculator() {
       costPerM2: area > 0        ? totalCost / area        : null,
     })
     setCostMessage('')
+    setShowCostPanel(false)   // auto-close: shows cost strip + re-enables Save & Excel
   }
 
   return (
