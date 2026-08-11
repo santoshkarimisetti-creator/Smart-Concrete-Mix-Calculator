@@ -33,9 +33,16 @@ const initialFormData = {
   thickness: '',
 }
 
-function ToggleButton({ active, children, onClick }) {
+function ToggleButton({ active, variant = 'default', children, onClick }) {
   return (
-    <button type="button" onClick={onClick} aria-pressed={active}>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      data-variant={variant}
+      className="admix-toggle-btn"
+    >
+      <span className="admix-toggle-btn__dot" aria-hidden="true" />
       {children}
     </button>
   )
@@ -582,12 +589,14 @@ export default function Calculator() {
             <div className="field__control field__control--toggle">
               <ToggleButton
                 active={!formData.admixture}
+                variant="no"
                 onClick={() => updateField('admixture', false)}
               >
                 No
               </ToggleButton>
               <ToggleButton
                 active={formData.admixture}
+                variant="yes"
                 onClick={() => updateField('admixture', true)}
               >
                 Yes
@@ -694,17 +703,53 @@ export default function Calculator() {
                 type="button"
                 className="save-button"
                 onClick={handleSave}
-                disabled={isSaving || Boolean(savedId) || submittedResult.errors.length > 0}
-                title={submittedResult.errors.length > 0 ? 'Resolve calculation errors first' : undefined}
+                disabled={isSaving || Boolean(savedId) || submittedResult.errors.length > 0 || showCostPanel}
+                title={
+                  submittedResult.errors.length > 0
+                    ? 'Resolve calculation errors first'
+                    : showCostPanel
+                    ? 'Complete or cancel cost estimation first'
+                    : undefined
+                }
               >
                 {isSaving ? 'Saving...' : savedId ? 'Saved ✓' : 'Save Calculation'}
               </button>
+
+              {/* ── Calculate Cost button lives here, between Save and Excel ── */}
+              {!savedId && (
+                <button
+                  type="button"
+                  className="cost-inline-btn"
+                  onClick={() => {
+                    setShowCostPanel((prev) => !prev)
+                    setCostMessage('')
+                  }}
+                  disabled={submittedResult.errors.length > 0}
+                  title={submittedResult.errors.length > 0 ? 'Resolve calculation errors first' : undefined}
+                >
+                  {showCostPanel
+                    ? '✕ Cancel Cost'
+                    : costResult
+                    ? '✎ Edit Prices'
+                    : '₹ Calculate Cost'}
+                </button>
+              )}
+              {savedId && costResult && (
+                <span className="save-message save-message--ok">Cost saved ✓</span>
+              )}
+
               <button
                 type="button"
                 className="excel-download-btn"
                 onClick={() => downloadResultExcel(formData, submittedResult, costResult)}
-                disabled={submittedResult.errors.length > 0}
-                title={submittedResult.errors.length > 0 ? 'Resolve calculation errors first' : undefined}
+                disabled={submittedResult.errors.length > 0 || showCostPanel}
+                title={
+                  submittedResult.errors.length > 0
+                    ? 'Resolve calculation errors first'
+                    : showCostPanel
+                    ? 'Complete or cancel cost estimation first'
+                    : undefined
+                }
               >
                 ↓ Download Excel
               </button>
@@ -719,6 +764,93 @@ export default function Calculator() {
                 </p>
               ) : null}
             </div>
+
+            {/* ── Cost panel: appears immediately below the button row ── */}
+            {showCostPanel && (
+              <div className="cost-panel-inline">
+                <div className="cost-price-grid">
+                  <label className="cost-price-label">
+                    Cement (₹/kg)
+                    <input type="number" name="cementPrice" value={costPrices.cementPrice}
+                      onChange={handleCostPriceChange} min="0" placeholder="e.g. 8" className="cost-price-input" />
+                  </label>
+                  <label className="cost-price-label">
+                    Fine Aggregate / Sand (₹/kg)
+                    <input type="number" name="sandPrice" value={costPrices.sandPrice}
+                      onChange={handleCostPriceChange} min="0" placeholder="e.g. 2" className="cost-price-input" />
+                  </label>
+                  <label className="cost-price-label">
+                    Coarse Aggregate (₹/kg)
+                    <input type="number" name="aggregatePrice" value={costPrices.aggregatePrice}
+                      onChange={handleCostPriceChange} min="0" placeholder="e.g. 1.5" className="cost-price-input" />
+                  </label>
+                  <label className="cost-price-label">
+                    Water (₹/litre)
+                    <input type="number" name="waterPrice" value={costPrices.waterPrice}
+                      onChange={handleCostPriceChange} min="0" placeholder="e.g. 0.05" className="cost-price-input" />
+                  </label>
+                  {submittedResult.admixture.enabled && (
+                    <label className="cost-price-label">
+                      Admixture (₹/kg)
+                      <input type="number" name="admixturePrice" value={costPrices.admixturePrice}
+                        onChange={handleCostPriceChange} min="0" placeholder="e.g. 120" className="cost-price-input" />
+                    </label>
+                  )}
+                </div>
+
+                <div className="cost-panel__actions">
+                  <button type="button" className="submit-button" onClick={handleCostCalculate}>
+                    Calculate Cost
+                  </button>
+                  <button
+                    type="button"
+                    className="history-delete-btn"
+                    onClick={() => { setShowCostPanel(false); setCostMessage('') }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+
+                {costMessage && (
+                  <p role="status" className="save-message save-message--err">{costMessage}</p>
+                )}
+
+                {costResult && (
+                  <div className="cost-results">
+                    <div className="cost-result-item">
+                      <span>Total Cost</span>
+                      <strong>₹ {Number(costResult.totalCost).toFixed(2)}</strong>
+                    </div>
+                    <div className="cost-result-item">
+                      <span>Cost / m³</span>
+                      <strong>{costResult.costPerM3 != null ? `₹ ${Number(costResult.costPerM3).toFixed(2)}` : '—'}</strong>
+                    </div>
+                    <div className="cost-result-item">
+                      <span>Cost / m²</span>
+                      <strong>{costResult.costPerM2 != null ? `₹ ${Number(costResult.costPerM2).toFixed(2)}` : '—'}</strong>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Compact cost result strip when panel is closed ── */}
+            {!showCostPanel && costResult && (
+              <div className="cost-results cost-results--compact">
+                <div className="cost-result-item">
+                  <span>Total Cost</span>
+                  <strong>₹ {Number(costResult.totalCost).toFixed(2)}</strong>
+                </div>
+                <div className="cost-result-item">
+                  <span>Cost / m³</span>
+                  <strong>{costResult.costPerM3 != null ? `₹ ${Number(costResult.costPerM3).toFixed(2)}` : '—'}</strong>
+                </div>
+                <div className="cost-result-item">
+                  <span>Cost / m²</span>
+                  <strong>{costResult.costPerM2 != null ? `₹ ${Number(costResult.costPerM2).toFixed(2)}` : '—'}</strong>
+                </div>
+              </div>
+            )}
           </header>
 
           {submittedResult.warnings.length > 0 ? (
@@ -930,113 +1062,7 @@ export default function Calculator() {
             </CalculationDetails>
           </section>
 
-          {/* ── Optional Cost Estimation Panel ───────────────────────── */}
-          <section className="results-subsection cost-panel">
-            <div className="cost-panel__header">
-              <h3>Cost Estimation</h3>
-              {!showCostPanel && !savedId && (
-                <button
-                  type="button"
-                  className="admixture-recommend-btn"
-                  onClick={() => setShowCostPanel(true)}
-                >
-                  {costResult ? 'Edit Prices' : 'Calculate Cost'}
-                </button>
-              )}
-              {!showCostPanel && savedId && costResult && (
-                <span className="save-message save-message--ok">Cost saved with calculation ✓</span>
-              )}
-              {!showCostPanel && !savedId && costResult && (
-                <span className="save-message save-message--ok">Cost ready — will be saved with calculation</span>
-              )}
-            </div>
 
-            {/* Inline cost summary when computed but panel is closed */}
-            {!showCostPanel && costResult && (
-              <div className="cost-results">
-                <div className="cost-result-item">
-                  <span>Total Cost</span>
-                  <strong>₹ {Number(costResult.totalCost).toFixed(2)}</strong>
-                </div>
-                <div className="cost-result-item">
-                  <span>Cost / m³</span>
-                  <strong>{costResult.costPerM3 != null ? `₹ ${Number(costResult.costPerM3).toFixed(2)}` : '—'}</strong>
-                </div>
-                <div className="cost-result-item">
-                  <span>Cost / m²</span>
-                  <strong>{costResult.costPerM2 != null ? `₹ ${Number(costResult.costPerM2).toFixed(2)}` : '—'}</strong>
-                </div>
-              </div>
-            )}
-
-            {showCostPanel && (
-              <div className="cost-panel__body">
-                <div className="cost-price-grid">
-                  <label className="cost-price-label">
-                    Cement (₹/kg)
-                    <input type="number" name="cementPrice" value={costPrices.cementPrice}
-                      onChange={handleCostPriceChange} min="0" placeholder="e.g. 8" className="cost-price-input" />
-                  </label>
-                  <label className="cost-price-label">
-                    Fine Aggregate / Sand (₹/kg)
-                    <input type="number" name="sandPrice" value={costPrices.sandPrice}
-                      onChange={handleCostPriceChange} min="0" placeholder="e.g. 2" className="cost-price-input" />
-                  </label>
-                  <label className="cost-price-label">
-                    Coarse Aggregate (₹/kg)
-                    <input type="number" name="aggregatePrice" value={costPrices.aggregatePrice}
-                      onChange={handleCostPriceChange} min="0" placeholder="e.g. 1.5" className="cost-price-input" />
-                  </label>
-                  <label className="cost-price-label">
-                    Water (₹/litre)
-                    <input type="number" name="waterPrice" value={costPrices.waterPrice}
-                      onChange={handleCostPriceChange} min="0" placeholder="e.g. 0.05" className="cost-price-input" />
-                  </label>
-                  {submittedResult.admixture.enabled && (
-                    <label className="cost-price-label">
-                      Admixture (₹/kg)
-                      <input type="number" name="admixturePrice" value={costPrices.admixturePrice}
-                        onChange={handleCostPriceChange} min="0" placeholder="e.g. 120" className="cost-price-input" />
-                    </label>
-                  )}
-                </div>
-
-                <div className="cost-panel__actions">
-                  <button type="button" className="submit-button" onClick={handleCostCalculate}>
-                    Calculate Cost
-                  </button>
-                  <button
-                    type="button"
-                    className="history-delete-btn"
-                    onClick={() => { setShowCostPanel(false); setCostMessage('') }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-
-                {costMessage && (
-                  <p role="status" className="save-message save-message--err">{costMessage}</p>
-                )}
-
-                {costResult && (
-                  <div className="cost-results">
-                    <div className="cost-result-item">
-                      <span>Total Cost</span>
-                      <strong>₹ {Number(costResult.totalCost).toFixed(2)}</strong>
-                    </div>
-                    <div className="cost-result-item">
-                      <span>Cost / m³</span>
-                      <strong>{costResult.costPerM3 != null ? `₹ ${Number(costResult.costPerM3).toFixed(2)}` : '—'}</strong>
-                    </div>
-                    <div className="cost-result-item">
-                      <span>Cost / m²</span>
-                      <strong>{costResult.costPerM2 != null ? `₹ ${Number(costResult.costPerM2).toFixed(2)}` : '—'}</strong>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </section>
         </section>
       ) : null}
     </main>
