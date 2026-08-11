@@ -59,7 +59,7 @@ test('TEST 2 - M30 Severe 20 mm 75 mm slump 0.45 W/C', () => {
   assert.equal(result.errors.length, 0)
 })
 
-test('TEST 3 - M20 Severe grade warning', () => {
+test('TEST 3 - M20 Severe grade error', () => {
   const result = calculateMixDesign(
     buildFormData({
       concreteGrade: 'M20',
@@ -70,8 +70,8 @@ test('TEST 3 - M20 Severe grade warning', () => {
   assert.equal(result.durability.minimumGrade, 'M30')
   assert.equal(result.durability.gradeValid, false)
   assert.ok(
-    result.warnings.includes(
-      'Selected concrete grade is below the minimum grade required for the selected RCC exposure condition.'
+    result.errors.includes(
+      'Selected concrete grade is below the minimum grade required for the selected exposure condition. Please select a higher grade or adjust the exposure condition.'
     )
   )
 })
