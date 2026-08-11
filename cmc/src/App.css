@@ -1266,9 +1266,19 @@
   white-space: nowrap;
   transition: background 0.15s, border-color 0.15s;
 }
-.excel-download-btn:hover {
+.excel-download-btn:hover:not(:disabled) {
   background: rgba(5,150,105,0.14);
   border-color: rgba(5,150,105,0.50);
+}
+.excel-download-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* calc-error-notice: spans the full save-row width */
+.calc-error-notice {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(220,38,38,0.06);
+  border: 1px solid rgba(220,38,38,0.25);
 }
 
 /* ─── Dashboard card (legacy) ────────────────────────────────────────────────── */

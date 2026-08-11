@@ -233,13 +233,14 @@ export function calculateAggregateFractions({ aggregateSize, adoptedWaterCementR
     }
   }
 
-  // baseFraction is the IS 10262 table value = proportion of FINE aggregate to total
-  // aggregate by absolute volume (Zone II), at W/C = 0.5.
-  // As W/C decreases below 0.5, fine fraction increases (more fine needed for workability).
-  const fineFraction = clampFraction(
-    baseFraction + ((0.5 - adoptedWaterCementRatio) / 0.05) * 0.01
+  // baseFraction is the IS 10262:2019 Table 5 value = proportion of COARSE aggregate to total
+  // aggregate by absolute volume (Zone II sand), at W/C = 0.5.
+  // As W/C decreases below 0.5, the mix becomes stiffer so a slightly lower coarse fraction
+  // is used (more fine aggregate) — adjustment of -0.01 per 0.05 step below 0.5.
+  const coarseFraction = clampFraction(
+    baseFraction + ((adoptedWaterCementRatio - 0.5) / 0.05) * 0.01
   )
-  const coarseFraction = fineFraction === null ? null : clampFraction(1 - fineFraction)
+  const fineFraction = coarseFraction === null ? null : clampFraction(1 - coarseFraction)
 
   return {
     baseFraction,
@@ -373,8 +374,8 @@ export function calculateMixDesign(formData = {}) {
   }
 
   if (gradeValid === false) {
-    warnings.push(
-      'Selected concrete grade is below the minimum grade required for the selected RCC exposure condition.'
+    errors.push(
+      'Selected concrete grade is below the minimum grade required for the selected exposure condition. Please select a higher grade or adjust the exposure condition.'
     )
   }
 

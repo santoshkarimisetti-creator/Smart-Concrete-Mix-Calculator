@@ -685,11 +685,17 @@ export default function Calculator() {
             <h2>Preliminary mix-design estimate</h2>
 
             <div className="results-save-row">
+              {submittedResult.errors.length > 0 && (
+                <p role="alert" className="save-message save-message--err calc-error-notice">
+                  ⚠ Resolve the calculation errors below before saving or downloading.
+                </p>
+              )}
               <button
                 type="button"
                 className="save-button"
                 onClick={handleSave}
-                disabled={isSaving || Boolean(savedId)}
+                disabled={isSaving || Boolean(savedId) || submittedResult.errors.length > 0}
+                title={submittedResult.errors.length > 0 ? 'Resolve calculation errors first' : undefined}
               >
                 {isSaving ? 'Saving...' : savedId ? 'Saved ✓' : 'Save Calculation'}
               </button>
@@ -697,6 +703,8 @@ export default function Calculator() {
                 type="button"
                 className="excel-download-btn"
                 onClick={() => downloadResultExcel(formData, submittedResult, costResult)}
+                disabled={submittedResult.errors.length > 0}
+                title={submittedResult.errors.length > 0 ? 'Resolve calculation errors first' : undefined}
               >
                 ↓ Download Excel
               </button>
