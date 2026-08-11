@@ -8,6 +8,7 @@ export async function signUp(email, password, fullName) {
       data: {
         full_name: fullName,
       },
+      emailRedirectTo: 'https://smart-concrete-mix-calculator.netlify.app/login',
     },
   })
 }

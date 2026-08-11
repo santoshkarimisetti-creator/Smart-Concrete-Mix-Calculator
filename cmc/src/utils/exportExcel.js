@@ -468,23 +468,20 @@ export function downloadCalculationExcel(record) {
     ['Cement Content',       fc(record.cement_content,       'kg/m3', 2)],
     ['Fine Aggregate',       fc(record.fine_aggregate,       'kg/m3', 2)],
     ['Coarse Aggregate',     fc(record.coarse_aggregate,     'kg/m3', 2)],
-    ['Admixture Quantity',
-      adm && (record.admixture_quantity ?? 0) > 0
-        ? fc(record.admixture_quantity, 'kg', 2)
-        : sc('Not used')],
-    ['Mix Ratio',   sc(record.mix_ratio || '—')],
-    ['Cement Bags', fc(record.cement_bags, '', 2)],
+    ['Admixture Quantity',   adm ? fc(record.admixture_quantity, 'kg', 2) : sc('Not used')],
+    ['Mix Ratio',            sc(record.mix_ratio || '—')],
+    ['Cement Bags',          fc(record.cement_bags, '', 2)],
   ])
 
   const sheet3 = buildSheet('Absolute Volumes', [
-    ['Cement Volume',            fc(record.cement_volume,    'm3', 4)],
-    ['Water Volume',             fc(record.water_volume,     'm3', 4)],
-    ['Fine Aggregate Volume',    sc('Not available')],
-    ['Coarse Aggregate Volume',  sc('Not available')],
-    ['Aggregate Volume (Total)', fc(record.aggregate_volume, 'm3', 4)],
+    ['Cement Volume',            fc(record.cement_volume,          'm3', 4)],
+    ['Water Volume',             fc(record.water_volume,           'm3', 4)],
+    ['Fine Aggregate Volume',    fc(record.fine_aggregate_volume,  'm3', 4)],
+    ['Coarse Aggregate Volume',  fc(record.coarse_aggregate_volume,'m3', 4)],
+    ['Aggregate Volume (Total)', fc(record.aggregate_volume,       'm3', 4)],
     ['Admixture Volume',         adm ? fc(record.admixture_volume, 'm3', 4) : sc('Not used')],
-    ['Air Volume',               sc('Not available')],
-    ['Total Absolute Volume',    sc('Not available')],
+    ['Air Volume',               fc(record.air_volume,             'm3', 4)],
+    ['Total Absolute Volume',    fc(record.total_absolute_volume,  'm3', 4)],
   ])
 
   const sheet4 = buildSheet('Cost Estimation', [

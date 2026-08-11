@@ -66,9 +66,7 @@ export default function Signup() {
         return
       }
       if (data?.session) { navigate('/home', { replace: true }); return }
-      setMessage(
-        'If this email is eligible for registration, a verification email has been sent. Please check your inbox.'
-      )
+      setMessage('Account created successfully. Please check your email to verify your account.')
     } catch (err) {
       console.error('Signup failed:', err)
       setError('Unable to create your account.')

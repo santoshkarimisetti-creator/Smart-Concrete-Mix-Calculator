@@ -1,7 +1,6 @@
-import { createContext, useEffect, useRef, useState } from 'react'
+import { createContext, useEffect, useState } from 'react'
 
 import { signIn, signOut, signUp } from '../lib/auth'
-import { ensureProfile } from '../lib/profile'
 import { supabase } from '../lib/supabase'
 
 export const AuthContext = createContext(null)
@@ -10,7 +9,6 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
-  const ensuredProfileUserIdRef = useRef(null)
 
   useEffect(() => {
     let isMounted = true
@@ -45,28 +43,6 @@ export function AuthProvider({ children }) {
       subscription.unsubscribe()
     }
   }, [])
-
-  useEffect(() => {
-    if (!user?.id || ensuredProfileUserIdRef.current === user.id) {
-      return
-    }
-
-    let cancelled = false
-
-    const createProfile = async () => {
-      const { error } = await ensureProfile(user)
-
-      if (!cancelled && !error) {
-        ensuredProfileUserIdRef.current = user.id
-      }
-    }
-
-    createProfile()
-
-    return () => {
-      cancelled = true
-    }
-  }, [user])
 
   const value = {
     user,
